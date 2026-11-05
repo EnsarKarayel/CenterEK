@@ -21,6 +21,7 @@ import auth as authentication
 import directory
 import endpoints
 import agents
+import device_settings
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -206,8 +207,9 @@ def collect(config, store, stop):
     with ThreadPoolExecutor(max_workers=32) as pool:
         while not stop.is_set():
             started = time.monotonic()
-            results = pool.map(lambda d: probe(d, config['timeout']), config['devices'])
-            for d, result in zip(config['devices'], results):
+            devices = tuple(config['devices'])
+            results = pool.map(lambda d: probe(d, config['timeout']), devices)
+            for d, result in zip(devices, results):
                 store.record(d['id'], *result, config['threshold'])
             store.prune()
             stop.wait(max(0, config['interval'] - (time.monotonic() - started)))
@@ -216,7 +218,8 @@ def collect(config, store, stop):
 def collect_metrics(config, store, stop):
     with ThreadPoolExecutor(max_workers=4) as pool:
         while not stop.is_set():
-            for device, result in zip(config['devices'], pool.map(connectors.read, config['devices'])):
+            devices = tuple(config['devices'])
+            for device, result in zip(devices, pool.map(connectors.read, devices)):
                 store.record_metrics(device['id'], result)
             stop.wait(60)
 
@@ -266,7 +269,7 @@ def handler(store, config, auth, registry=None):
                 except OSError:
                     self.respond(503, b'{}')
                 return
-            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts'):
+            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts', '/api/devices'):
                 self.respond(404)
                 return
             expected = auth.public_origin or ('https://' if auth.secure else 'http://') + self.headers.get('Host', '')
@@ -277,7 +280,7 @@ def handler(store, config, auth, registry=None):
                 auth.logout(self.token())
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(clear=True)})
                 return
-            if self.path == '/api/accounts':
+            if self.path in ('/api/accounts', '/api/devices'):
                 user = auth.user(self.token())
                 if not user or user['role'] != 'admin':
                     self.respond(403, b'{}')
@@ -294,12 +297,27 @@ def handler(store, config, auth, registry=None):
                         self.respond(429 if error == 'limited' else 403, b'{}')
                         return
                     auth.logout(check)
+                    if self.path == '/api/devices':
+                        if payload.get('action') == 'test':
+                            _, device = device_settings.candidate(config, payload.get('device'), validate)
+                            ok, latency, error = probe(device, 2)
+                            self.respond(200, json.dumps({'ok': ok, 'latency': latency, 'error': error}).encode())
+                        elif payload.get('action') == 'save':
+                            device = device_settings.save(config, payload.get('device'), getattr(store, 'config_path', ROOT / 'config.local.json'), validate)
+                            with store.lock, store.db:
+                                store.db.execute('INSERT INTO account_audit VALUES (?,?,?,?)', (time.time(), user['username'], 'device-save', device['id']))
+                            self.respond(200, b'{}')
+                        else:
+                            raise ValueError('Geçersiz işlem')
+                        return
                     auth.manage(user['username'], payload.get('action'), payload.get('username', ''), payload.get('password', ''), payload.get('role', 'viewer'))
                     self.respond(200, b'{}')
                 except sqlite3.IntegrityError:
                     self.respond(409, b'{"error":"Account already exists"}')
                 except (ValueError, TypeError):
                     self.respond(400, b'{"error":"Invalid account operation"}')
+                except OSError:
+                    self.respond(503, b'{"error":"Settings could not be saved"}')
                 return
             try:
                 length = int(self.headers.get('Content-Length', 0))
@@ -443,6 +461,7 @@ def main():
         return
     (ROOT / 'data').mkdir(exist_ok=True)
     store = Store(ROOT / 'data' / 'monitor.sqlite3')
+    store.config_path = Path(args.config)
     if bool(args.tls_cert) != bool(args.tls_key):
         parser.error('TLS sertifika ve anahtar birlikte gerekli')
     if not ipaddress.ip_address(args.bind).is_loopback and not args.tls_cert:

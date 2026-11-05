@@ -153,6 +153,8 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 
 ### Çalışma kaydı
 
+- 2026-11-05: Kurulum ekranına yönetici parolasıyla korunan cihaz ekleme/düzenleme ve ICMP/TCP erişim testi eklendi. Yapılandırma yedeği, atomik kayıt ve canlı toplamada tur başına sabit cihaz listesi uygulandı. Mevcut collector ayarları korunuyor; kimlik bağlı cihazın host değişikliği reddediliyor. 36 Python testi ve switch UI davranış kontrolü geçti. Yerel deneme kopyasına aktarıldı. API/SNMP kimlik formu, tam kurulum paketi ve fiziksel topoloji hâlâ açık işler.
+
 - 2026-11-05: Operasyon ön yüzünde koyu mantıksal izleme radarı, kaynak durumuna bağlı hareketli çizgiler ve tıklanabilir cihaz kartları eklendi. Kart/menü/tablo görsel hiyerarşisi düzenlendi, hareket azaltma ve klavye odak görünürlüğü korundu. Yerel deneme kurulumunun web dosyalarına aktarıldı. JS sözdizimi ve switch DOM testleri geçti; bu değişiklik için görsel tarayıcı kabulü tamamlanmadı. Sonraki iş: kaynak bağlantı düzenleme ve kurulum akışı.
 
 - 2026-11-05: Yönetici panelinde hesap oluşturma, parola yenileme ve devre dışı bırakma; mevcut yönetici parolasıyla yeniden doğrulama, son aktif yönetici koruması ve hesap işlem günlüğü eklendi. Yöneticiye özel Kurulum / Bağlantılar ekranı HTTPS, kaynak ölçümleri, dizin ve uç ajan hazırlığını ve bağlantı gereksinimlerini gösteriyor. Bu ekran yapılandırma değiştiren tam sihirbaz veya Setup.exe değildir. Güvenlik/işlev testleri tests/test_auth_inventory.py içinde. Gerçek tarayıcı kabulü ve müşteri dağıtımı bekliyor.
