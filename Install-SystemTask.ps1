@@ -80,6 +80,7 @@ $namespace='Root/Microsoft/Windows/TaskScheduler'
 $startup=New-CimInstance -Namespace $namespace -ClassName MSFT_TaskBootTrigger -ClientOnly -Property @{Enabled=$true}
 $repeat=New-CimInstance -Namespace $namespace -ClassName MSFT_TaskRepetitionPattern -ClientOnly -Property @{Interval='PT5M';StopAtDurationEnd=$false}
 $recovery=New-CimInstance -Namespace $namespace -ClassName MSFT_TaskTimeTrigger -ClientOnly -Property @{Enabled=$true;StartBoundary=(Get-Date).AddMinutes(5).ToString('yyyy-MM-ddTHH:mm:ss');Repetition=$repeat}
+foreach($trigger in @($startup,$recovery)){$trigger.PSObject.TypeNames.Add('Microsoft.Management.Infrastructure.CimInstance#MSFT_TaskTrigger')}
 $principal=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 99 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 if($previous){Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue}
