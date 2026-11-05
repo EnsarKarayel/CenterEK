@@ -52,6 +52,17 @@ Kabul: en az iki gerçek switch ve bir uç cihaz bağlantısı kablolamayla kar�
 
 ## P0 — Kurulum ve erişim
 
+### Erişim modları — kullanıcı tercihi
+
+- [ ] Varsayılan: yalnızca bu bilgisayar; panel tarayıcıda localhost/loopback adresiyle açılsın. Kurulum kendiliğinden genel ağ dinlemesi veya internet port yönlendirmesi oluşturmasın.
+- [ ] İsteğe bağlı yerel ağ: yönetici dinlenecek ağ adresini/portu ve erişim kapsamını seçsin; panel HTTPS ve kullanıcı oturumuyla erişilsin. Windows güvenlik duvarı kuralı gerekiyorsa kapsamı gösterilsin ve seçilen kurulum adımıyla uygulansın.
+- [ ] İsteğe bağlı internet erişimi: alan adı, geçerli TLS sertifikası, ters proxy/VPN seçenekleri ve gerekli ağ yönlendirmesi açıklansın. IP değiştirmek tek başına internet yayını sayılmaz; NAT/CGNAT ve DNS koşulları kontrol edilsin.
+- [ ] İnternet modu: MFA, giriş/istek hız sınırları, güvenli oturumlar, proxy güven sınırı ve denetim kayıtları yayın ön kontrolünde doğrulansın. Uygulama internet erişimine hazır diye işaretlenmeden bu kontroller tamamlanmalı.
+- [ ] Erişim ayarları arayüzden sonradan değiştirilebilsin; mevcut kullanıcıyı dışarıda bırakmayan ön kontrol, uygulama/geri alma ve yeni adres gösterimi olsun.
+- [ ] Kurulum sonrası seçilen erişim moduna göre doğru panel adresini aç/göster. Sertifikanın IP/hostname kapsamı adres değişikliğinde tekrar doğrulansın.
+
+Kabul: varsayılan kurulum başka bilgisayardan erişilemez; LAN modu yalnızca seçilen kapsamdan HTTPS ile erişilir; internet modu ayrı test ortamında doğrulanır. Kullanıcının yönlendiricisi veya firewall'u açık yetkilendirme olmadan otomatik değiştirilmez.
+
 Kullanıcı tarafından ayrıca teyit edilen dağıtım akışı: **İndir → kurulum sihirbazı → gerekli bilgileri gir → bağlantıları doğrula → kur → otomatik çalıştır.** ZIP içinden betik çalıştırmak nihai ürün kurulumu değildir.
 
 - [ ] İndirilebilir Windows Setup.exe/MSI; imzalı, sürümlü ve bütünlüğü doğrulanabilir paket.
