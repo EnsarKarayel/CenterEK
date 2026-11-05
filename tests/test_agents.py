@@ -24,6 +24,18 @@ def report(computer='PC01'):
 
 
 class AgentTests(unittest.TestCase):
+    def test_volume_capacity_validation_and_allowlist(self):
+        data = report()
+        data['volumes'] = [{'name': 'C:\\', 'format': 'NTFS', 'total_gb': 512,
+                            'free_gb': 128, 'secret': 'must-not-persist'}]
+        clean = agents.endpoint_report(data, 'PC01')
+        self.assertEqual(clean['volumes'][0]['free_gb'], 128)
+        self.assertNotIn('secret', clean['volumes'][0])
+        for invalid in (-1, 513, float('nan'), float('inf'), True):
+            data['volumes'][0]['free_gb'] = invalid
+            with self.assertRaises(ValueError):
+                agents.endpoint_report(data, 'PC01')
+
     def setUp(self):
         (monitor.ROOT / 'data').mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(dir=monitor.ROOT / 'data')

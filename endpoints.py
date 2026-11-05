@@ -29,6 +29,7 @@ def load(folder, directory):
                               'status': data['status'], 'error': data.get('error'),
                               'checked': data['collected_at'], 'stale': stale,
                               'resources': data.get('resources', {}), 'interfaces': data.get('interfaces', []),
+                              'volumes': data.get('volumes', []),
                               'primary_ip': data.get('primary_ip'), 'authenticated': data.get('authenticated', False),
                               'agent_id': data.get('agent_id'),
                               'interval_seconds': interval,

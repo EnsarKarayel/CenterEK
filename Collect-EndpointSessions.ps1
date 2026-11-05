@@ -95,7 +95,7 @@ do {
         if ($target -notmatch '^[A-Za-z0-9.-]{1,253}$') { throw 'Geçersiz bilgisayar adı' }
         $report = [ordered]@{schema=1; computer=$target; collected_at=(Get-Date).ToUniversalTime().ToString('o');
             source='Windows WTS'; address_source='DNS çözümlemesi'; ips=@(); sessions=@(); status='ok'; error=$null;
-            resources=@{}; interfaces=@(); primary_ip=$null; interval_seconds=$IntervalSeconds}
+            resources=@{}; volumes=@(); interfaces=@(); primary_ip=$null; interval_seconds=$IntervalSeconds}
         try {
             $report.ips = @([System.Net.Dns]::GetHostAddresses($target) | Where-Object {$_.AddressFamily -eq 'InterNetwork'} | ForEach-Object {$_.IPAddressToString})
             $report.sessions = @([CenterEKWTS]::Read($target))
@@ -114,6 +114,14 @@ do {
                 }
                 $report.address_source='Yerel ağ kartları'
                 $report.resources=[CenterEKResources]::Read()
+                foreach ($drive in [System.IO.DriveInfo]::GetDrives()) {
+                    if ($drive.DriveType -ne 'Fixed' -or -not $drive.IsReady) { continue }
+                    try {
+                        $report.volumes += [ordered]@{name=$drive.Name;format=$drive.DriveFormat;
+                            total_gb=[Math]::Round($drive.TotalSize/1GB,2);
+                            free_gb=[Math]::Round($drive.AvailableFreeSpace/1GB,2)}
+                    } catch { Write-Warning 'Bir disk biriminin kapasitesi okunamadı.' }
+                }
             } } catch { Write-Warning 'Ek CPU/RAM veya ağ kartı ölçümü alınamadı; oturum verisi korunuyor.' }
         } catch {
             $report.status = 'error'

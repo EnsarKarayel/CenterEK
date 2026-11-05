@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -71,6 +72,19 @@ def endpoint_report(data, computer):
         if ip not in result['ips']:
             raise ValueError('Arayüz IP eşleşmiyor')
         result['interfaces'].append({'ip': ip, 'name': str(interface.get('name', ''))[:120]})
+    volumes = data.get('volumes', [])
+    if not isinstance(volumes, list) or len(volumes) > 128:
+        raise ValueError('Geçersiz disk listesi')
+    result['volumes'] = []
+    for volume in volumes:
+        if not isinstance(volume, dict):
+            raise ValueError('Geçersiz disk')
+        total, free = volume.get('total_gb'), volume.get('free_gb')
+        if any(type(v) not in (int, float) or not math.isfinite(v) for v in (total, free)) or not 0 <= free <= total <= 100000000:
+            raise ValueError('Geçersiz disk kapasitesi')
+        result['volumes'].append({'name': str(volume.get('name', ''))[:120],
+                                  'format': str(volume.get('format', ''))[:40],
+                                  'total_gb': total, 'free_gb': free})
     return result
 
 

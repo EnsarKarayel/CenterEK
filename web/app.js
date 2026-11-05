@@ -31,8 +31,50 @@ async function refreshInventory(){try{state.inventory=await api('/api/inventory'
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>setView(b.dataset.view));$('device-search').addEventListener('input',renderDevices);$('client-search').addEventListener('input',()=>{renderInventory();renderPCs()});$('ad-search').addEventListener('input',renderDirectory);$('session-search').addEventListener('input',renderSessions);$('logout').addEventListener('click',async()=>{const r=await fetch('/api/logout',{method:'POST'});if(r.ok)location.replace('/login');else{$('error').hidden=false;$('error').textContent='Çıkış yapılamadı. Tekrar deneyin.'}});
 (async()=>{try{const user=await api('/api/me');$('identity').textContent=user.username+' · '+(user.role==='admin'?'Yönetici':'İzleyici');$('accounts-nav').hidden=user.role!=='admin';$('agents-nav').hidden=user.role!=='admin';setView('overview');refresh();refreshInventory()}catch{$('error').hidden=false;$('error').textContent='Oturum doğrulanamadı.'}})();
 
-function renderPCs(){const q=$('client-search').value.toLowerCase();table($('pc-health'),['Bilgisayar','IP ve ağ kartları','Veri durumu','CPU','RAM','Son rapor','Geçmiş'],state.sessions.computers.filter(c=>(c.computer+' '+(c.ips||[]).join(' ')).toLowerCase().includes(q)).map(c=>{const ok=c.status==='ok'&&!c.stale;const labels=(c.interfaces||[]).map(i=>i.name+': '+i.ip).join(' · ');return[c.computer,cell((c.ips||[]).join(', '),labels||c.address_source),tag(c.stale?'Güncel değil':c.status==='ok'?'Rapor alınıyor':'Sorgu hatası',ok?'up':'warning'),metric(ok?c.resources?.cpu_percent:null),metric(ok?c.resources?.memory_percent:null),date(c.checked),pcButton(c)]}))}
+function pcFilters(){
+ if($('pc-freshness'))return;
+ const bar=el('div',null,'inventory-filters');
+ for(const [id,label,options] of [
+ ['pc-freshness','Veri durumu',[['all','Tüm durumlar'],['fresh','Güncel'],['stale','Eski / hatalı']]],
+ ['pc-session','Kullanıcı oturumu',[['all','Tüm oturumlar'],['active','Aktif oturum var'],['none','Aktif oturum gözlenmedi']]],
+ ['pc-order','Sıralama',[['name','Bilgisayar adı'],['ram','RAM kullanımı'],['disk','Disk doluluğu']]]]){
+ const wrap=el('label',label),select=el('select');select.id=id;
+ for(const [value,text]of options){const option=el('option',text);option.value=value;select.append(option)}
+ select.addEventListener('change',renderPCs);wrap.append(select);bar.append(wrap);
+ }
+ const clear=el('button','Filtreleri temizle','button');clear.type='button';clear.onclick=()=>{$('client-search').value='';for(const id of ['pc-freshness','pc-session','pc-order'])$(id).selectedIndex=0;renderPCs();renderInventory()};bar.append(clear);
+ $('client-search').after(bar);
+}
+function renderPCs(){
+ pcFilters();const q=$('client-search').value.toLowerCase(),freshness=$('pc-freshness').value,sessionFilter=$('pc-session').value;
+ const active=c=>state.sessions.sessions.filter(s=>s.computer===c.computer&&!s.stale&&s.state==='active');
+ const diskLoad=c=>Math.max(-1,...(c.volumes||[]).filter(v=>v.total_gb>0).map(v=>100*(v.total_gb-v.free_gb)/v.total_gb));
+ const rows=state.sessions.computers.filter(c=>{
+ const ok=c.status==='ok'&&!c.stale,users=active(c);
+ return [c.computer,...(c.ips||[]),...users.map(s=>s.domain+'\\'+s.username)].join(' ').toLowerCase().includes(q)
+ &&(freshness==='all'||(freshness==='fresh'?ok:!ok))&&(sessionFilter==='all'||(sessionFilter==='active'?users.length>0:users.length===0));
+ });
+ const order=$('pc-order').value;rows.sort((a,b)=>order==='name'?a.computer.localeCompare(b.computer):order==='ram'?((b.stale?-1:b.resources?.memory_percent)??-1)-((a.stale?-1:a.resources?.memory_percent)??-1): (b.stale?-1:diskLoad(b))-(a.stale?-1:diskLoad(a)));
+ table($('pc-health'),['Bilgisayar / IP','Açık kullanıcı','Veri durumu','CPU','RAM','Disk birimleri','Son rapor','Geçmiş'],rows.map(c=>{
+ const ok=c.status==='ok'&&!c.stale,r=c.resources||{},users=active(c),volumes=c.volumes||[];
+ const disks=el('div',null,'volume-list');
+ for(const v of volumes){const used=v.total_gb>0?100*(v.total_gb-v.free_gb)/v.total_gb:null;const item=el('div');item.append(el('strong',v.name),el('small',number(v.free_gb)+' / '+number(v.total_gb)+' GB boş'+(!ok?' · Eski veri':'')));if(ok&&used!==null){const meter=el('meter');meter.min=0;meter.max=100;meter.value=used;meter.high=85;meter.optimum=0;meter.title=number(used)+'% dolu';item.append(meter)}disks.append(item)}
+ if(!volumes.length)disks.append(el('small','Disk verisi yok · Ajan güncellemesi gerekebilir'));
+ return [cell(c.computer,(c.ips||[]).join(', ')),cell(users.map(s=>s.domain+'\\'+s.username).join(', ')||'—',!ok?'Güncel oturum verisi yok':users.length?'Windows WTS':'Aktif oturum gözlenmedi'),tag(ok?'Güncel':c.stale?'Güncel değil':'Sorgu hatası',ok?'up':'warning'),metric(ok?r.cpu_percent:null),cell(ok?number(r.memory_percent)+' %':'—',r.memory_total_gb!=null?number(r.memory_used_gb)+' / '+number(r.memory_total_gb)+' GB'+(!ok?' · Eski veri':''):'Toplam RAM ölçülmedi'),disks,date(c.checked),pcButton(c)];
+ }));
+}
+
 async function loadAgents(){try{const agents=await api('/api/agents');table($('agent-list'),['Bilgisayar','Tür','Gönderim durumu','Son alım','Anahtar kimliği'],agents.map(a=>[a.computer,a.kind==='endpoint'?'Uç bilgisayar':'AD / DHCP / DNS',tag(!a.enabled?'İptal':!a.received?'İlk rapor bekleniyor':Date.now()/1000-a.received>(a.kind==='endpoint'?150:900)?'Rapor gecikmiş':'Rapor alınıyor',a.enabled&&a.received&&Date.now()/1000-a.received<(a.kind==='endpoint'?150:900)?'up':'warning'),date(a.received),a.id]))}catch{empty($('agent-list'),'Ajan listesi alınamadı.')}}
 
+function renderOperations(){
+ let root=$('operations-widgets');if(!root){root=el('div',null,'flow-layout');root.id='operations-widgets';$('live-dashboard').after(root)}root.replaceChildren();
+ const health=el('article',null,'flow-card'),tiles=el('div',null,'health-tiles');health.append(el('h3','Altyapı erişim haritası'),el('p','Her kutu bir cihazdır. Fiziksel bağlantı haritası değildir.','live-footnote'));
+ for(const d of state.data?.devices||[]){const b=el('button',d.name,'health-tile '+(d.stale?'unknown':d.status==='up'?'up':'down'));b.title=d.host+' · '+(d.stale?'Güncel değil':d.status==='up'?'Erişilebilir':'Erişim yok');b.onclick=()=>{setView(/esxi|linux|server|sunucu/i.test(d.kind+' '+d.name)?'servers':'network');showDetail(d.id,true)};tiles.append(b)}health.append(tiles);root.append(health);
+ const memory=el('article',null,'flow-card');memory.append(el('h3','En yüksek RAM kullanımı'));
+ const measured=state.sessions.computers.filter(c=>!c.stale&&c.status==='ok'&&Number.isFinite(c.resources?.memory_percent)).sort((a,b)=>b.resources.memory_percent-a.resources.memory_percent).slice(0,6);
+ for(const c of measured){const row=el('div',null,'memory-ranking');row.append(el('strong',c.computer),el('span',number(c.resources.memory_percent)+' %'));const bar=el('meter');bar.min=0;bar.max=100;bar.high=85;bar.optimum=0;bar.value=c.resources.memory_percent;bar.setAttribute('aria-label',c.computer+' RAM kullanımı');row.append(bar);memory.append(row)}if(!measured.length)memory.append(el('p','Güncel ajan RAM ölçümü bekleniyor.','live-footnote'));root.append(memory);
+}
+document.addEventListener('centerek:status',renderOperations);
+document.addEventListener('centerek:inventory',renderOperations);
 function pcButton(c){if(!c.agent_id)return el('span','Dosya raporu');const b=el('button','Grafikler','button');b.addEventListener('click',()=>showPCDetail(c.agent_id,true).catch(()=>{$('error').hidden=false;$('error').textContent='Bilgisayar geçmişi alınamadı.'}));return b}
 async function showPCDetail(id,scroll){state.selectedPC=id;const h=await api('/api/history/agent-'+encodeURIComponent(id));if(state.selectedPC!==id)return;$('pc-detail').hidden=false;const c=state.sessions.computers.find(c=>c.agent_id===id);$('pc-detail-title').textContent=(c?.computer||'Uç bilgisayar')+' · Son 24 saat';$('pc-charts').replaceChildren();for(const [key,title]of [['cpu_percent','CPU (%)'],['memory_percent','RAM (%)']])$('pc-charts').append(chart(title,h.metrics.map(m=>[m.checked,m.status==='ok'?m.values[key]:null]),100));if(scroll)$('pc-detail').scrollIntoView({behavior:'smooth'})}
