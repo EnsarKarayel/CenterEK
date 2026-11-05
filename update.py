@@ -6,6 +6,7 @@ import shutil
 import socket
 import urllib.request
 import zipfile
+import argparse
 
 FILES = {
     'monitor.py', 'auth.py', 'users.py', 'connectors.py', 'directory.py', 'endpoints.py',
@@ -17,6 +18,9 @@ FILES = {
 
 
 def main():
+    parser = argparse.ArgumentParser(description='CenterEK kaynak güncellemesi')
+    parser.add_argument('--archive', type=Path, help='Önceden indirilen GitHub kaynak ZIP dosyası')
+    args = parser.parse_args()
     root = Path(__file__).resolve().parent
     if not (root / 'monitor.py').is_file():
         raise SystemExit('Bu dosyayı mevcut CenterEK klasöründe çalıştırın.')
@@ -25,9 +29,17 @@ def main():
             raise SystemExit('Önce çalışan CenterEK programını Ctrl+C ile durdurun.')
     except OSError:
         pass
-    print('GitHub güncellemesi indiriliyor...', flush=True)
-    with urllib.request.urlopen('https://github.com/EnsarKarayel/CenterEK/archive/refs/heads/main.zip', timeout=120) as response:
-        raw = response.read(20 * 1024 * 1024 + 1)
+    if args.archive:
+        print('Yerel güncelleme paketi okunuyor...', flush=True)
+        with args.archive.open('rb') as source:
+            raw = source.read(20 * 1024 * 1024 + 1)
+    else:
+        print('GitHub güncellemesi indiriliyor...', flush=True)
+        try:
+            with urllib.request.urlopen('https://github.com/EnsarKarayel/CenterEK/archive/refs/heads/main.zip', timeout=120) as response:
+                raw = response.read(20 * 1024 * 1024 + 1)
+        except urllib.error.URLError:
+            raise SystemExit('İndirme başarısız. GitHub ZIP dosyasını başka bilgisayarda indirip --archive DOSYA.zip ile kullanın. TLS doğrulaması kapatılmaz.')
     if len(raw) > 20 * 1024 * 1024:
         raise SystemExit('Paket boyutu sınırı aşıldı.')
     archive = zipfile.ZipFile(io.BytesIO(raw))
