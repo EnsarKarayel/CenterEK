@@ -4,6 +4,39 @@ import asyncio
 import os
 import ssl
 from urllib.request import Request, build_opener, HTTPSHandler, ProxyHandler, HTTPRedirectHandler
+from urllib.error import HTTPError
+
+
+def resource_value(resources, key):
+    value = resources.get(key)
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if isinstance(value, dict):
+        value = value.get('current')
+    return value if type(value) in (int, float) else None
+
+
+def normalize_clients(rows):
+    if not isinstance(rows, list):
+        raise ValueError('Beklenmeyen cihaz envanteri biçimi')
+    result, seen = [], set()
+    for row in rows[:2000]:
+        if not isinstance(row, dict):
+            continue
+        ip = row.get('ipv4_address') or row.get('ip') or row.get('ipv6_address') or ''
+        mac = str(row.get('mac') or '').lower()
+        key = (str(ip), mac)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append({'ip': str(ip), 'mac': mac, 'hostname': str(row.get('hostname') or ''),
+                       'vendor': str(row.get('hardware_vendor') or ''),
+                       'type': str(row.get('hardware_type') or ''), 'os': str(row.get('os_name') or ''),
+                       'interface': str(row.get('detected_interface') or ''),
+                       'online': row.get('is_online') if type(row.get('is_online')) is bool else None,
+                       'last_seen': row.get('last_seen') if type(row.get('last_seen')) in (int, float) else None,
+                       'source': 'FortiGate cihaz envanteri'})
+    return result
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -78,7 +111,7 @@ def fortigate(device, settings):
     opener = build_opener(ProxyHandler({}), HTTPSHandler(context=context(settings)), NoRedirect())
 
     def get(path):
-        req = Request(base + '/api/v2/monitor/system/' + path,
+        req = Request(base + '/api/v2/monitor/' + path,
                       headers={'Authorization': 'Bearer ' + token})
         with opener.open(req, timeout=8) as response:
             raw = response.read(2 * 1024 * 1024 + 1)
@@ -89,19 +122,36 @@ def fortigate(device, settings):
             raise ValueError('FortiGate API başarısız yanıt verdi')
         return data.get('results', {})
 
-    status = get('status')
+    status = get('system/status')
     result = {'model': status.get('model'), 'version': status.get('version'),
-              'hostname': status.get('hostname'), 'interfaces': []}
+              'hostname': status.get('hostname'), 'interfaces': [], 'section_errors': [], 'clients': []}
     # Interface response fields differ by FortiOS; only known numeric counters
     # are interpreted, missing values stay null.
-    interfaces = get('interface')
+    interfaces = get('system/interface')
     entries = interfaces.items() if isinstance(interfaces, dict) else ((x.get('name', '?'), x) for x in interfaces)
     for name, value in entries:
         if not isinstance(value, dict):
             continue
         result['interfaces'].append({'name': name, 'link': value.get('link'),
                                      'rx_bytes': value.get('rx_bytes'), 'tx_bytes': value.get('tx_bytes'),
-                                     'speed': value.get('speed')})
+                                     'speed': value.get('speed'), 'rx_errors': value.get('rx_errors'),
+                                     'tx_errors': value.get('tx_errors')})
+    try:
+        resources = get('system/resource/usage?interval=1-min')
+        result['cpu_percent'] = resource_value(resources, 'cpu')
+        result['memory_percent'] = resource_value(resources, 'mem')
+        result['sessions'] = resource_value(resources, 'session')
+        if result['cpu_percent'] is None and result['memory_percent'] is None:
+            raise ValueError('Kaynak yanıtı tanınmadı')
+    except Exception as exc:
+        result['section_errors'].append('CPU/RAM: ' + ('HTTP ' + str(exc.code) if isinstance(exc, HTTPError) else type(exc).__name__))
+    try:
+        result['clients'] = normalize_clients(get('user/device/query'))
+        result['inventory_status'] = 'ok'
+        result['inventory_limit'] = 2000
+    except Exception as exc:
+        result['inventory_status'] = 'error'
+        result['section_errors'].append('Cihaz envanteri: ' + ('HTTP ' + str(exc.code) if isinstance(exc, HTTPError) else type(exc).__name__))
     return result
 
 

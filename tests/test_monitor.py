@@ -2,9 +2,11 @@ import json
 import socket
 import threading
 import unittest
-from urllib.request import urlopen
+from urllib.request import urlopen, build_opener, HTTPCookieProcessor, Request
+import http.cookiejar
 from http.server import ThreadingHTTPServer
 import monitor
+import auth
 
 
 class MonitoringTests(unittest.TestCase):
@@ -39,16 +41,22 @@ class MonitoringTests(unittest.TestCase):
 
     def test_http_unknown_stale_and_routes(self):
         config = {'interval': 30, 'devices': [{'id': 'a', 'name': 'test'}]}
-        server = ThreadingHTTPServer(('127.0.0.1', 0), monitor.handler(self.store, config))
+        accounts = auth.Auth(self.store)
+        accounts.add_user('http-test', 'http-test-password', 'viewer')
+        server = ThreadingHTTPServer(('127.0.0.1', 0), monitor.handler(self.store, config, accounts))
         thread = threading.Thread(target=server.serve_forever)
         thread.start()
         try:
             base = 'http://127.0.0.1:' + str(server.server_port)
-            with urlopen(base + '/api/status') as response:
+            client = build_opener(HTTPCookieProcessor(http.cookiejar.CookieJar()))
+            with client.open(Request(base + '/api/login', data=json.dumps({'username': 'http-test', 'password': 'http-test-password'}).encode(),
+                                     headers={'Origin': base, 'Content-Type': 'application/json'})):
+                pass
+            with client.open(base + '/api/status') as response:
                 data = json.load(response)
                 self.assertEqual(data['devices'][0]['status'], 'unknown')
                 self.assertTrue(data['devices'][0]['stale'])
-            with urlopen(base) as response:
+            with client.open(base) as response:
                 self.assertIn(b'CenterEK', response.read())
         finally:
             server.shutdown()

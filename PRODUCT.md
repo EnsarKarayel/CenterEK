@@ -28,6 +28,10 @@ Arayüzler, logolar ve ürün kodları kopyalanmaz; genel iş akışlarından ya
 4. Kesintiler: Başlangıç, doğrulama, geri dönüş ve süre.
 5. Sonraki aşama: doğrulanmış ağ haritası, bildirim kuralları, müşteri/lokasyon seçimi, kurulum sihirbazı.
 
+## 0.3 uygulama durumu
+
+0.3 ile yerel panel hesapları, korumalı API/raporlar, sol menü ve kategori tabloları, FortiGate kaynak/envanter sorguları, AD/DHCP/DNS dışa aktarımı ve Windows WTS oturum sorgulama/paneli eklendi. Bu veri kaynaklarının gerçek müşteri ortamında bağlantı doğrulaması ayrı bir pilot adımıdır. Güncel kurulum ve sınırlar OPERATIONS.md içindedir. Otomatik dağıtım, SNMPv3, fiziksel topoloji, bildirim ve ticari yayın doğrulaması aşağıdaki yol haritasında kalır.
+
 ## Sürümler ve kabul ölçütleri
 
 ### 0.2 — Bu geliştirme

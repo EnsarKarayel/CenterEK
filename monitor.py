@@ -15,6 +15,11 @@ import insights
 import csv
 import io
 import re
+import ssl
+from http.cookies import SimpleCookie
+import auth as authentication
+import directory
+import endpoints
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parent
@@ -131,7 +136,27 @@ class Store:
                         and 0 < delta < 180 and old.get('status') == 'ok' and not discontinuity else None)
             payload = json.dumps(result, ensure_ascii=False)
             self.db.execute('INSERT OR REPLACE INTO metrics VALUES (?,?,?)', (device, now, payload))
-            self.db.execute('INSERT INTO metric_samples VALUES (?,?,?)', (device, now, payload))
+            history = dict(result, values={k: v for k, v in result.get('values', {}).items() if k != 'clients'})
+            self.db.execute('INSERT INTO metric_samples VALUES (?,?,?)', (device, now, json.dumps(history, ensure_ascii=False)))
+
+    def inventory(self, config):
+        rows, sources = [], []
+        with self.lock:
+            for device in config['devices']:
+                if device.get('collector', {}).get('type') != 'fortigate':
+                    continue
+                metric = self.db.execute('SELECT * FROM metrics WHERE device=?', (device['id'],)).fetchone()
+                payload = json.loads(metric['payload']) if metric else {}
+                values = payload.get('values', {})
+                stale = not metric or time.time() - metric['checked'] > 180
+                sources.append({'device': device['id'], 'name': device['name'], 'checked': metric['checked'] if metric else None,
+                                'status': values.get('inventory_status', 'unknown'), 'stale': stale,
+                                'errors': values.get('section_errors', []), 'limit': values.get('inventory_limit', 2000)})
+                for client in values.get('clients', []):
+                    rows.append(dict(client, firewall=device['name'], checked=metric['checked'], stale=stale))
+        imported = directory.load(ROOT / 'data' / 'directory-inventory.json')
+        rows.extend(imported.pop('clients', []))
+        return {'clients': rows, 'sources': sources, 'directory': imported}
 
     def prune(self):
         with self.lock, self.db:
@@ -161,6 +186,7 @@ class Store:
                 row['metrics'] = ({'checked': metric['checked'], **json.loads(metric['payload'])} if metric else
                                   {'status': 'unconfigured', 'error': 'Ölçüm bağlantısı yapılandırılmadı', 'values': {}, 'checked': None})
                 row['metrics']['stale'] = not metric or time.time() - metric['checked'] > 180
+                row['metrics']['values'].pop('clients', None)
                 counts = self.db.execute('SELECT COUNT(*),SUM(ok) FROM samples WHERE device=? AND checked>=?',
                                          (d['id'], time.time() - 86400)).fetchone()
                 row['availability_24h'] = round(100 * counts[1] / counts[0], 2) if counts[0] else None
@@ -168,7 +194,7 @@ class Store:
                 devices.append(row)
             incidents = [dict(r) for r in self.db.execute('SELECT * FROM incidents ORDER BY id DESC LIMIT 100')]
             return {'devices': devices, 'incidents': incidents, 'alerts': insights.alerts(devices),
-                    'now': time.time(), 'interval': config['interval'], 'version': '0.2.0'}
+                    'now': time.time(), 'interval': config['interval'], 'version': '0.3.0'}
 
 
 def collect(config, store, stop):
@@ -190,12 +216,91 @@ def collect_metrics(config, store, stop):
             stop.wait(60)
 
 
-def handler(store, config):
+def handler(store, config, auth):
+    if auth is None:
+        raise ValueError('Kimlik doğrulama bileşeni gerekli')
     class Handler(BaseHTTPRequestHandler):
+        def respond(self, status, body=b'', mime='application/json; charset=utf-8', headers=None):
+            self.send_response(status)
+            self.send_header('Content-Type', mime)
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Referrer-Policy', 'no-referrer')
+            self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+            for key, value in (headers or {}).items():
+                self.send_header(key, value)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def token(self):
+            try:
+                cookie = SimpleCookie(self.headers.get('Cookie', ''))
+                return cookie['centerek_session'].value if 'centerek_session' in cookie else ''
+            except Exception:
+                return ''
+
+        def do_POST(self):
+            if not auth or self.path not in ('/api/login', '/api/logout'):
+                self.respond(404)
+                return
+            expected = auth.public_origin or ('https://' if auth.secure else 'http://') + self.headers.get('Host', '')
+            if self.headers.get('Origin') != expected or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+                self.respond(403, b'{"error":"Origin rejected"}')
+                return
+            if self.path == '/api/logout':
+                auth.logout(self.token())
+                self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(clear=True)})
+                return
+            try:
+                length = int(self.headers.get('Content-Length', 0))
+                if not 1 <= length <= 4096 or self.headers.get_content_type() != 'application/json':
+                    raise ValueError()
+                payload = json.loads(self.rfile.read(length))
+                username, password = payload['username'], payload['password']
+                if not isinstance(username, str) or not isinstance(password, str) or len(username) > 64 or len(password) > 256:
+                    raise ValueError()
+            except (ValueError, KeyError, TypeError):
+                self.respond(400, b'{}')
+                return
+            token, error = auth.login(username, password, self.client_address[0])
+            if error:
+                self.respond(429 if error == 'limited' else 401, b'{"error":"Login failed"}')
+            else:
+                self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(token)})
+
         def do_GET(self):
+            if self.path == '/login':
+                self.respond(200, (ROOT / 'web' / 'login.html').read_bytes(), 'text/html; charset=utf-8')
+                return
+            user = auth.user(self.token()) if auth else None
+            if auth and not user:
+                self.respond(401 if self.path.startswith('/api/') else 303, b'{}', headers={} if self.path.startswith('/api/') else {'Location': '/login'})
+                return
+            if self.path == '/api/me':
+                self.respond(200, json.dumps(user or {'username': 'test', 'role': 'viewer'}).encode())
+                return
             if self.path == '/api/status':
                 body = json.dumps(store.snapshot(config), ensure_ascii=False).encode('utf-8')
                 mime = 'application/json; charset=utf-8'
+            elif self.path == '/api/inventory':
+                body = json.dumps(store.inventory(config), ensure_ascii=False).encode('utf-8')
+                mime = 'application/json; charset=utf-8'
+            elif self.path == '/api/sessions':
+                imported = directory.load(ROOT / 'data' / 'directory-inventory.json')
+                body = json.dumps(endpoints.load(ROOT / 'data' / 'endpoint-sessions', imported), ensure_ascii=False).encode('utf-8')
+                mime = 'application/json; charset=utf-8'
+            elif self.path == '/api/accounts':
+                if auth and user['role'] != 'admin':
+                    self.respond(403, b'{}')
+                    return
+                with store.lock:
+                    rows = [dict(r) for r in store.db.execute('SELECT username,role,enabled FROM users')] if auth else []
+                body = json.dumps(rows).encode()
+                mime = 'application/json; charset=utf-8'
+            elif self.path in ('/app.js', '/style.css'):
+                body = (ROOT / 'web' / self.path[1:]).read_bytes()
+                mime = 'text/javascript; charset=utf-8' if self.path.endswith('.js') else 'text/css; charset=utf-8'
             elif self.path == '/api/report.csv':
                 data = store.snapshot(config)
                 stream = io.StringIO(newline='')
@@ -229,14 +334,11 @@ def handler(store, config):
             else:
                 self.send_error(404)
                 return
-            self.send_response(200)
-            self.send_header('Content-Type', mime)
-            self.send_header('Content-Length', str(len(body)))
-            self.send_header('Cache-Control', 'no-store')
-            self.send_header('X-Content-Type-Options', 'nosniff')
-            self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'")
-            self.end_headers()
-            self.wfile.write(body)
+            self.respond(200, body, mime)
+
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(15)
 
         def log_message(self, *args):
             pass
@@ -248,6 +350,9 @@ def main():
     parser.add_argument('--config', default=str(ROOT / 'config.local.json'))
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--check-config', action='store_true')
+    parser.add_argument('--bind', default='127.0.0.1')
+    parser.add_argument('--tls-cert')
+    parser.add_argument('--tls-key')
     args = parser.parse_args()
     config = validate(json.loads(Path(args.config).read_text(encoding='utf-8-sig')))
     if args.check_config:
@@ -255,13 +360,27 @@ def main():
         return
     (ROOT / 'data').mkdir(exist_ok=True)
     store = Store(ROOT / 'data' / 'monitor.sqlite3')
+    if bool(args.tls_cert) != bool(args.tls_key):
+        parser.error('TLS sertifika ve anahtar birlikte gerekli')
+    if not ipaddress.ip_address(args.bind).is_loopback and not args.tls_cert:
+        parser.error('Ağdan erişim için TLS sertifika ve anahtar gerekli')
+    auth = authentication.Auth(store, secure=bool(args.tls_cert))
+    if not auth.count():
+        print('İlk kullanıcıyı oluşturun: python users.py add --role admin')
+        store.db.close()
+        return
     stop = threading.Event()
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), handler(store, config))
+    server = ThreadingHTTPServer((args.bind, args.port), handler(store, config, auth))
+    if args.tls_cert:
+        tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        tls.minimum_version = ssl.TLSVersion.TLSv1_2
+        tls.load_cert_chain(args.tls_cert, args.tls_key)
+        server.socket = tls.wrap_socket(server.socket, server_side=True)
     worker = threading.Thread(target=collect, args=(config, store, stop), daemon=True)
     worker.start()
     metric_worker = threading.Thread(target=collect_metrics, args=(config, store, stop), daemon=True)
     metric_worker.start()
-    print('NetWatch: http://127.0.0.1:' + str(args.port), flush=True)
+    print('CenterEK: ' + ('https://' if args.tls_cert else 'http://') + args.bind + ':' + str(args.port), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

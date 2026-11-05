@@ -1,6 +1,21 @@
-# CenterEK Monitor 0.2
+# CenterEK Monitor 0.3
 
 Yerel ağ, fiziksel sunucu ve ağ cihazları için geliştirilmekte olan izleme uygulaması. Ürün yönü ve ticari yayın kabul ölçütleri [PRODUCT.md](PRODUCT.md) dosyasındadır. Bu sürüm pilot içindir.
+
+## 0.3 yenilikleri ve ilk giriş
+
+Sol menü, okunabilir tablolar, FortiGate CPU/RAM ve IP/MAC envanteri; AD kullanıcılarını içe aktarma ve uç bilgisayardan kullanıcı-oturum sorgulama eklendi. AD oturum açma entegrasyonu veya AD'de hesap oluşturma yoktur.
+
+**Panel artık kullanıcı girişi gerektirir.** Güncellemeden sonra önce yerel hesabı oluşturun, ardından start.py çalıştırın:
+
+```cmd
+"C:\Program Files\Python311\python.exe" users.py add --role admin
+"C:\Program Files\Python311\python.exe" start.py
+```
+
+Kurulum, AD/DHCP/DNS aktarımı, uç bilgisayar oturum sorgulama, kullanıcı rolleri ve TLS erişimi: **[OPERATIONS.md](OPERATIONS.md)**.
+
+Güncelleme yardımcısı update.py, uygulama durdurulmuşken kaynakları indirir; önce klasörü yedekler, yerel ayar/verileri korur. GitHub'dan yeni dosyaların tamamını almak gerekir; eski bir dosya listesiyle kısmi güncelleme yapmayın.
 
 ## Neler var?
 
@@ -9,7 +24,7 @@ Yerel ağ, fiziksel sunucu ve ağ cihazları için geliştirilmekte olan izleme 
 - Cihaz araması, son 24 saatlik erişim/CPU/RAM grafikleri, datastore ve port ayrıntıları.
 - Yapılandırılırsa ESXi CPU/RAM/uptime/datastore okuyucusu.
 - Yapılandırılırsa SNMPv2c IF-MIB port durumu, 64-bit trafik ve hata sayaçları (en fazla 128 port).
-- FortiGate sistem/arayüz API okuyucusu (deneysel; FortiOS sürümünde doğrulama gerekli).
+- FortiGate sistem/arayüz, CPU/RAM ve IP/MAC envanteri okuyucusu (ek uç noktalar için FortiOS sürümünde doğrulama gerekli).
 - Belirtilen özel IP aralığında ICMP ve altı TCP servisi keşfi. Otomatik cihaz kimliği tespiti veya tam port taraması değildir.
 - SQLite kalıcı kayıt; ölçümler 30 gün saklanır, panel son 24 saati gösterir. Kesinti olayları korunur.
 - Durum ve başarılı kontrol oranını içeren CSV raporu.
@@ -31,9 +46,9 @@ copy config.example.json config.local.json
 "C:\Program Files\Python311\python.exe" monitor.py
 ```
 
-Panel: http://127.0.0.1:8765 . Panel yalnızca çalıştığı bilgisayardan erişilir. Ağ erişimi için kimlik doğrulama ve TLS henüz eklenmedi.
+Panel: http://127.0.0.1:8765 . Panel yalnızca çalıştığı bilgisayardan erişilir. Kimlik doğrulama zorunludur. Ağ erişimi için --bind ile birlikte --tls-cert ve --tls-key gerekir; ayrıntılar OPERATIONS.md içindedir.
 
-Kullanıcı Windows Server 2012 R2 / Python 3.11.9 üzerinde 0.1 panelini çalıştırdı. 0.2 ve ek paketlerin aynı makinede doğrulanması gerekir. Ticari sürüm için güncel, desteklenen platform matrisi ayrıca belirlenecek.
+Kullanıcı Windows Server 2012 R2 / Python 3.11.9 üzerinde 0.1 panelini çalıştırdı. 0.3 ve ek paketlerin aynı makinede doğrulanması gerekir. Ticari sürüm için güncel, desteklenen platform matrisi ayrıca belirlenecek.
 
 ## Mevcut sürümü güncelleme
 
@@ -41,7 +56,7 @@ Kullanıcı Windows Server 2012 R2 / Python 3.11.9 üzerinde 0.1 panelini çalı
 2. C:\CenterEK klasörünün tamamını ayrı bir konuma yedekleyin.
 3. Yeni GitHub ZIP'indeki kaynak dosyalarını C:\CenterEK üzerine kopyalayın. config.local.json, config.backup.local.json, certs ve data klasörünü koruyun. .git klasörünü sunucuya taşımak gerekmez.
 4. Yukarıdaki pip komutunu çalıştırın. --check-config ile ayarları doğrulayın.
-5. monitor.py veya bağlantı bilgilerini sorarak başlatmak için start.py çalıştırın.
+5. İlk panel hesabını users.py add --role admin ile oluşturun. API bilgilerini sorarak başlatmak için start.py çalıştırın.
 
 Veritabanı tabloları açılışta eklenir; önceki durum ve kesinti kayıtları silinmez. Eski tarihler için yeni ölçüm grafikleri geriye dönük oluşmaz.
 
@@ -101,7 +116,7 @@ ICMP süresi ping komutunun başlatılma süresini içerir; kesin RTT değildir.
 
 ## Henüz olmayanlar
 
-Linux/Windows kaynak ajanı, WMI, Dell iDRAC sıcaklık/fan, SNMPv3, LLDP/CDP/FDB topolojisi, NetFlow/sFlow, DNS ve paket kaybı ölçümleri, gerçek hız testi, dışarı bildirim, Windows servisi, kullanıcı/rol sistemi ve çok müşteri izolasyonu. Ürünün bu işlevleri varmış gibi satılması uygun değildir; ayrıntılı sıra PRODUCT.md içindedir.
+Linux/Windows kaynak ajanı, WMI, Dell iDRAC sıcaklık/fan, SNMPv3, LLDP/CDP/FDB topolojisi, NetFlow/sFlow, DNS ve paket kaybı ölçümleri, gerçek hız testi, dışarı bildirim, Windows servisi, web üzerinden kullanıcı yönetimi ve çok müşteri izolasyonu. Panel kullanıcı girişi/rol ayrımı eklendi; uç oturum ve AD veri akışı OPERATIONS.md içinde açıklanır. Ürünün bu işlevleri varmış gibi satılması uygun değildir; ayrıntılı sıra PRODUCT.md içindedir.
 
 ## Test ve yedekleme
 
