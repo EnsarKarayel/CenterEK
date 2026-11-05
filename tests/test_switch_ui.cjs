@@ -12,6 +12,10 @@ for(const id of ['device-search','client-search','ad-search','session-search','l
 const main=new Element('main');
 const context=vm.createContext({Node:Element,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),querySelectorAll:()=>[],querySelector:()=>main,addEventListener(){}},fetch:()=>new Promise(()=>{}),AbortSignal:{timeout(){}},console,setTimeout(){},Date,Number});
 vm.runInContext(fs.readFileSync('web/app.js','utf8'),context);
+assert.equal(vm.runInContext('portMode({oper_status:1,admin_status:1},true)',context),'up');
+assert.equal(vm.runInContext('portMode({oper_status:2,admin_status:1},true)',context),'down');
+assert.equal(vm.runInContext('portMode({oper_status:2,admin_status:2},true)',context),'disabled');
+assert.equal(vm.runInContext('portMode({oper_status:1,admin_status:1},false)',context),'unknown');
 vm.runInContext(`state.data={devices:[{id:'sw1',name:'Core Switch',kind:'Switch',host:'192.0.2.2',status:'up',stale:false,metrics:{status:'ok',stale:false,checked:1,values:{interfaces:Array.from({length:60},(_,n)=>({name:'Port '+(n+1),oper_status:n===0?2:1,admin_status:1,high_speed:10000,rx_mbps:n,tx_mbps:0,rx_errors:0,tx_errors:0}))}}}]};renderSwitches()`,context);
 assert.equal(nodes.get('switch-ports').children[0].children[1].children.length,50);
 assert.equal(nodes.get('switch-panels').children.length,1);

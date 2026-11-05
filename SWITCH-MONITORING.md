@@ -25,6 +25,8 @@ Bu sürümde SNMPv2c kullanılır. Salt okunur erişim, yönetim ağı ve toplay
 
 ## Gösterilenler
 
+Port renkleri: yeşil bağlantı var; kırmızı operasyon durumu down; gri yönetimden kapalı; sarı bilinmeyen/eski veri. Yönetimden kapalı port gri önceliği taşır. Renkler uygulama semantiğidir, fiziksel cihaz LED'lerinin evrensel standardı olarak sunulmaz. Etiket ve açıklamalar renk yanında gösterilir. Kırmızı port tek başına arıza alarmı değildir.
+
 - Mantıksal port kutuları; cihaz/IP, port adı ve açıklaması.
 - Operasyon/yönetim durumu; yüksek hız alanı varsa Mbps, yoksa ifSpeed dönüşümü.
 - Sayaç farkından alım/gönderim Mbps ve toplam hata sayaçları.

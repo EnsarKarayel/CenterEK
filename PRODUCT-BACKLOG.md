@@ -52,6 +52,16 @@ Kabul: en az iki gerçek switch ve bir uç cihaz bağlantısı kablolamayla kar�
 
 ## P0 — Kurulum ve erişim
 
+Kullanıcı tarafından ayrıca teyit edilen dağıtım akışı: **İndir → kurulum sihirbazı → gerekli bilgileri gir → bağlantıları doğrula → kur → otomatik çalıştır.** ZIP içinden betik çalıştırmak nihai ürün kurulumu değildir.
+
+- [ ] İndirilebilir Windows Setup.exe/MSI; imzalı, sürümlü ve bütünlüğü doğrulanabilir paket.
+- [ ] Kurulum öncesi ekranlar: TR/EN/FR/DE dil, lisans, hedef klasör, port/hostname, veri saklama ve ilk yönetici bilgileri.
+- [ ] Kaynak seçimi: AD, firewall, ESXi, switch ve uç ajan rolleri; aynı sunucu/IP üzerinde birden fazla rol seçilebilsin.
+- [ ] Her kaynak için gerekli adres, protokol, port, yetki ve sertifika alanlarını açıklayan form; parola/token gizleme ve sırların güvenli saklanması.
+- [ ] Ön kontrol: işletim sistemi, disk, port çakışması, yetki ve bağlantı testi. Hata varsa anlaşılır düzeltme adımı; eksik kaynağı daha sonra ekleme seçeneği.
+- [ ] Kurulum tamamlandığında HTTPS panelini aç; kaynak ve ajan kurulum durumlarını göster. Başarısız kurulum yarım yapılandırmayı çalışan sistem diye sunmasın.
+- [ ] Kabul: temiz desteklenen Windows'ta Python/CMD/JSON düzenlemesi gerekmeden kurulum ve yeniden başlatma sonrası çalışma. Gerçek paket üretilip temiz makinede denenmeden tamamlandı sayılmaz.
+
 - [ ] Tek Windows kurulum paketi: Python çalışma zamanını paketle; kullanıcıdan Python ve CMD işlemleri isteme.
 - [ ] Sihirbaz: dil, klasör, panel adresi, ilk yönetici, roller, veri kaynağı bağlantıları ve bağlantı testleri.
 - [ ] AD, panel ve toplayıcı aynı sunucuda çalışabilsin; tek IP ve birden fazla rol desteklensin. Ayrı sunucu seçeneği korunsun.
