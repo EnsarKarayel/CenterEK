@@ -69,12 +69,21 @@ function renderPCs(){
 async function loadAgents(){try{const agents=await api('/api/agents');table($('agent-list'),['Bilgisayar','Tür','Gönderim durumu','Son alım','Anahtar kimliği'],agents.map(a=>[a.computer,a.kind==='endpoint'?'Uç bilgisayar':'AD / DHCP / DNS',tag(!a.enabled?'İptal':!a.received?'İlk rapor bekleniyor':Date.now()/1000-a.received>(a.kind==='endpoint'?150:900)?'Rapor gecikmiş':'Rapor alınıyor',a.enabled&&a.received&&Date.now()/1000-a.received<(a.kind==='endpoint'?150:900)?'up':'warning'),date(a.received),a.id]))}catch{empty($('agent-list'),'Ajan listesi alınamadı.')}}
 
 function renderOperations(){
+ renderNetworkScene();
  let root=$('operations-widgets');if(!root){root=el('div',null,'flow-layout');root.id='operations-widgets';$('live-dashboard').after(root)}root.replaceChildren();
  const health=el('article',null,'flow-card'),tiles=el('div',null,'health-tiles');health.append(el('h3','Altyapı erişim haritası'),el('p','Her kutu bir cihazdır. Fiziksel bağlantı haritası değildir.','live-footnote'));
  for(const d of state.data?.devices||[]){const b=el('button',d.name,'health-tile '+(d.stale?'unknown':d.status==='up'?'up':'down'));b.title=d.host+' · '+(d.stale?'Güncel değil':d.status==='up'?'Erişilebilir':'Erişim yok');b.onclick=()=>{setView(/esxi|linux|server|sunucu/i.test(d.kind+' '+d.name)?'servers':'network');showDetail(d.id,true)};tiles.append(b)}health.append(tiles);root.append(health);
  const memory=el('article',null,'flow-card');memory.append(el('h3','En yüksek RAM kullanımı'));
  const measured=state.sessions.computers.filter(c=>!c.stale&&c.status==='ok'&&Number.isFinite(c.resources?.memory_percent)).sort((a,b)=>b.resources.memory_percent-a.resources.memory_percent).slice(0,6);
  for(const c of measured){const row=el('div',null,'memory-ranking');row.append(el('strong',c.computer),el('span',number(c.resources.memory_percent)+' %'));const bar=el('meter');bar.min=0;bar.max=100;bar.high=85;bar.optimum=0;bar.value=c.resources.memory_percent;bar.setAttribute('aria-label',c.computer+' RAM kullanımı');row.append(bar);memory.append(row)}if(!measured.length)memory.append(el('p','Güncel ajan RAM ölçümü bekleniyor.','live-footnote'));root.append(memory);
+}
+function renderNetworkScene(){
+ let scene=$('network-scene');if(!scene){scene=el('article',null,'network-scene');scene.id='network-scene';$('live-dashboard').after(scene)}scene.replaceChildren();
+ const head=el('div',null,'scene-header');head.append(cell('ALTYAPI RADARI','İzleme bağlantıları · Fiziksel kablolama haritası değildir'),tag('Gerçek erişim kontrolleri','up'));scene.append(head);
+ const center=el('div',null,'scene-center');center.append(el('span','CE','scene-core'),el('strong','CenterEK'),el('small','İzleme merkezi'));scene.append(center);
+ const nodes=el('div',null,'scene-nodes');
+ for(const d of state.data?.devices||[]){const mode=d.stale?'unknown':d.status==='up'?'up':d.status==='down'?'down':'unknown';const b=el('button',null,'scene-node '+mode);b.type='button';const kind=/switch/i.test(d.kind+' '+d.name)?'SW':/firewall|forti/i.test(d.kind+' '+d.name)?'FW':/linux/i.test(d.kind+' '+d.name)?'LX':'SR';b.append(el('span',kind,'scene-icon'),el('strong',d.name),el('small',d.host),status(d));b.onclick=()=>{setView(category(d));showDetail(d.id,true).catch(()=>{$('error').hidden=false;$('error').textContent='Cihaz ayrıntısı alınamadı.'})};nodes.append(b)}
+ if(!nodes.children.length)nodes.append(el('p','İzlenen cihazlar eklendiğinde burada görünür.'));scene.append(nodes,el('p','Hareketli çizgiler başarılı izleme durumunu temsil eder; paket yakalama veya switch komşuluğu göstermez.','scene-note'));
 }
 document.addEventListener('centerek:status',renderOperations);
 document.addEventListener('centerek:inventory',renderOperations);
