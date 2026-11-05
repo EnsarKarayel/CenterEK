@@ -2,6 +2,8 @@
 const $=id=>document.getElementById(id);
 const state={view:'overview',data:null,inventory:{clients:[],sources:[],directory:{}},sessions:{sessions:[],computers:[]},selected:null,selectedPC:null};
 const titles={overview:'Genel durum',servers:'Sunucular',network:'Ağ cihazları',clients:'Bilgisayarlar / IP envanteri',ad:'AD kullanıcıları',sessions:'Kullanıcı → bilgisayar',discovery:'Ağ keşfi',events:'Kesintiler',agents:'Ajan bağlantıları',accounts:'Panel kullanıcıları'};
+titles.switches='Switchler / Portlar';
+let switchPage=1;
 function el(tag,text,cls){const n=document.createElement(tag);if(text!=null)n.textContent=String(text);if(cls)n.className=cls;return n}
 function date(t){if(!t)return '—';const d=new Date(typeof t==='number'?t*1000:t);return isNaN(d)?'—':d.toLocaleString('tr-TR')}
 function number(v,digits=1){return typeof v==='number'&&Number.isFinite(v)?v.toLocaleString('tr-TR',{maximumFractionDigits:digits}):'—'}
@@ -76,5 +78,36 @@ function renderOperations(){
 }
 document.addEventListener('centerek:status',renderOperations);
 document.addEventListener('centerek:inventory',renderOperations);
+function initSwitches(){
+ const section=el('section');section.dataset.section='switches';section.hidden=true;
+ section.append(el('div','SNMP arayüz gözlemleri. Port çizimi mantıksaldır; cihazın fiziksel soket yerleşimini veya bağlı cihaz kimliğini kanıtlamaz.','notice'));
+ const bar=el('div',null,'inventory-filters');
+ for(const [id,title,options]of [['switch-device','Cihaz',[['all','Tüm switchler']]],['switch-link','Port durumu',[['all','Tümü'],['up','Bağlı'],['down','Bağlı değil'],['unknown','Bilinmiyor / eski']]],['switch-order','Sıralama',[['name','Port adı'],['traffic','Trafik kullanımı'],['errors','Hata sayacı']]]]){
+ const label=el('label',title),select=el('select');select.id=id;for(const [value,text]of options){const option=el('option',text);option.value=value;select.append(option)}select.onchange=()=>{switchPage=1;renderSwitches()};label.append(select);bar.append(label)}
+ const search=el('input');search.id='switch-search';search.placeholder='Switch, IP, port veya açıklama';search.setAttribute('aria-label','Switch portlarını ara');search.oninput=()=>{switchPage=1;renderSwitches()};bar.append(search);section.append(bar);
+ for(const [id,cls]of [['switch-summary','stats'],['switch-panels','grid'],['switch-ports','panel scroll'],['switch-paging','inventory-filters']]){const n=el('div',null,cls);n.id=id;section.append(n)}
+ document.querySelector('main').append(section);
+}
+function renderSwitches(){
+ if(!$('switch-device'))return;
+ const devices=(state.data?.devices||[]).filter(d=>/switch|anahtar/i.test(d.kind+' '+d.name));
+ const select=$('switch-device'),chosen=select.value;select.replaceChildren();for(const [value,text]of [['all','Tüm switchler'],...devices.map(d=>[d.id,d.name])]){const o=el('option',text);o.value=value;select.append(o)}select.value=devices.some(d=>d.id===chosen)?chosen:'all';
+ const selected=devices.filter(d=>select.value==='all'||d.id===select.value),rows=[];
+ const panels=$('switch-panels');panels.replaceChildren();
+ for(const d of selected){const m=d.metrics,valid=m.status==='ok'&&!m.stale;const panel=el('article',null,'flow-card');panel.append(el('h3',d.name),cell(d.host,m.values?.hostname),status(d),el('small','Son SNMP ölçümü: '+date(m.checked)));const ports=el('div',null,'switch-port-grid');
+ for(const i of m.values?.interfaces||[]){const mode=!valid?'unknown':i.oper_status===1?'up':i.oper_status===2?'down':'unknown';rows.push({d,i,mode,valid});const port=el('button',i.name,'switch-port '+mode);port.title=i.name+' · '+(mode==='unknown'?'Güncel durum bilinmiyor':mode==='up'?'Bağlı':'Bağlı değil')+(i.alias?' · '+i.alias:'');port.onclick=()=>{$('switch-device').value=d.id;$('switch-search').value=i.name;switchPage=1;renderSwitches();$('switch-ports').scrollIntoView({behavior:'smooth'})};ports.append(port)}
+ if(!ports.children.length)ports.append(el('p',m.error||'SNMP port verisi bekleniyor.'));panel.append(ports);if(!valid)panel.append(el('p','Port ölçümleri güncel değil.','warning-text'));panels.append(panel)}
+ if(!devices.length)empty(panels,'Henüz Switch türünde cihaz tanımlanmadı. SNMP okuyucusu, yönetim IP’si ve salt okunur kimlik bilgisi yapılandırılmalı.');
+ const summary=$('switch-summary');summary.replaceChildren();for(const [title,count]of [['Switch',selected.length],['Bağlı port',rows.filter(r=>r.mode==='up').length],['Bağlı değil',rows.filter(r=>r.mode==='down').length],['Bilinmiyor / eski',rows.filter(r=>r.mode==='unknown').length]]){const card=el('article',null,'stat');card.append(el('small',title),el('strong',count));summary.append(card)}
+ const q=$('switch-search').value.toLowerCase(),mode=$('switch-link').value,order=$('switch-order').value;
+ const filtered=rows.filter(r=>(mode==='all'||r.mode===mode)&&[r.d.name,r.d.host,r.i.name,r.i.alias].join(' ').toLowerCase().includes(q));
+ const score=r=>!r.valid?-1:order==='traffic'?(r.i.rx_mbps||0)+(r.i.tx_mbps||0):(r.i.rx_errors||0)+(r.i.tx_errors||0);
+ filtered.sort((a,b)=>order==='name'?(a.d.name+' '+a.i.name).localeCompare(b.d.name+' '+b.i.name,undefined,{numeric:true}):score(b)-score(a));
+ const pages=Math.max(1,Math.ceil(filtered.length/50));switchPage=Math.min(switchPage,pages);
+ table($('switch-ports'),['Switch / IP','Port / açıklama','Bağlantı','Yönetim','Hız Mbps','Alım Mbps','Gönderim Mbps','Hata sayaçları RX / TX'],filtered.slice((switchPage-1)*50,switchPage*50).map(({d,i,mode,valid})=>[cell(d.name,d.host),cell(i.name,i.alias),tag(mode==='up'?'Bağlı':mode==='down'?'Bağlı değil':'Bilinmiyor / eski',mode==='up'?'up':mode==='down'?'':'warning'),valid?(i.admin_status===1?'Etkin':i.admin_status===2?'Kapalı':'Bilinmiyor'):'—',valid?number(i.high_speed>0?i.high_speed:typeof i.speed==='number'?i.speed/1000000:null):'—',number(valid?i.rx_mbps:null,2),number(valid?i.tx_mbps:null,2),valid?(i.rx_errors??'—')+' / '+(i.tx_errors??'—'):'—']));
+ const paging=$('switch-paging');paging.replaceChildren();for(const [label,delta]of [['Önceki',-1],['Sonraki',1]]){const b=el('button',label,'button');b.disabled=delta<0?switchPage===1:switchPage===pages;b.onclick=()=>{switchPage+=delta;renderSwitches()};paging.append(b)}paging.append(el('span',filtered.length+' port · Sayfa '+switchPage+' / '+pages),el('small','Hata alanları toplam sayaçtır; yeni hata veya alarm anlamına gelmez.'));
+}
+initSwitches();
+document.addEventListener('centerek:status',renderSwitches);
 function pcButton(c){if(!c.agent_id)return el('span','Dosya raporu');const b=el('button','Grafikler','button');b.addEventListener('click',()=>showPCDetail(c.agent_id,true).catch(()=>{$('error').hidden=false;$('error').textContent='Bilgisayar geçmişi alınamadı.'}));return b}
 async function showPCDetail(id,scroll){state.selectedPC=id;const h=await api('/api/history/agent-'+encodeURIComponent(id));if(state.selectedPC!==id)return;$('pc-detail').hidden=false;const c=state.sessions.computers.find(c=>c.agent_id===id);$('pc-detail-title').textContent=(c?.computer||'Uç bilgisayar')+' · Son 24 saat';$('pc-charts').replaceChildren();for(const [key,title]of [['cpu_percent','CPU (%)'],['memory_percent','RAM (%)']])$('pc-charts').append(chart(title,h.metrics.map(m=>[m.checked,m.status==='ok'?m.values[key]:null]),100));if(scroll)$('pc-detail').scrollIntoView({behavior:'smooth'})}

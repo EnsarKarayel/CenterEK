@@ -183,6 +183,8 @@ async def snmp_async(device, settings):
             raise RuntimeError('SNMP erişimi başarısız')
         result = {'hostname': binds[0][1].prettyPrint(), 'interfaces': [], 'protocol': 'SNMPv2c'}
         roots = {'name': '1.3.6.1.2.1.2.2.1.2', 'oper_status': '1.3.6.1.2.1.2.2.1.8',
+                 'admin_status': '1.3.6.1.2.1.2.2.1.7',
+                 'alias': '1.3.6.1.2.1.31.1.1.1.18', 'high_speed': '1.3.6.1.2.1.31.1.1.1.15',
                  'speed': '1.3.6.1.2.1.2.2.1.5', 'rx_bytes': '1.3.6.1.2.1.31.1.1.1.6',
                  'tx_bytes': '1.3.6.1.2.1.31.1.1.1.10', 'rx_errors': '1.3.6.1.2.1.2.2.1.14',
                  'tx_errors': '1.3.6.1.2.1.2.2.1.20', 'counter_discontinuity': '1.3.6.1.2.1.31.1.1.1.19'}

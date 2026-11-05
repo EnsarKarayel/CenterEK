@@ -132,6 +132,8 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 
 ### Çalışma kaydı
 
+- 2026-11-05: Ayrı switch ekranı, mantıksal port kutuları, filtre/arama/sıralama/sayfalama; SNMP port açıklaması, yönetim durumu ve yüksek hız alanları eklendi. Node DOM davranış kontrolü geçti. Gerçek switch bağlantısı ve görsel kabul bekliyor. LLDP/FDB, PoE ve SNMPv3 henüz uygulanmadı. SWITCH-MONITORING.md kullanım/sınırları açıklar.
+
 - 2026-11-05: Disk birimi kapasitesi ajan/veri hattı, bilgisayar tablosunda güncel açık kullanıcı ve RAM/disk özetleri, durum/oturum filtreleri, sıralama ve erişim/RAM dashboard bileşenleri uygulandı. 32 Python testi ve JS/PS sözdizimi kontrolleri geçti. Gerçek cihaz ve görsel kabul bekliyor; P0 maddelerinin bütünü tamamlanmadı. Ayrıntılar CHANGES-INVENTORY.md.
 
 - 2026-11-05: Kullanıcının ürünleştirme, global dil, güvenlik, akıllı switch, donanım/oturum envanteri ve dashboard görsel talepleri bu dosyada toplandı. Bu kayıtta yeni uygulama özelliği devreye alınmadı.
