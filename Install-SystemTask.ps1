@@ -76,9 +76,10 @@ foreach($item in @($previous,$legacy)) {if($item){Export-ScheduledTask -TaskName
 $arguments='-NoProfile -WindowStyle Hidden -File "'+$wrapper+'" -Mode '+$Mode+' -PythonPath "'+$PythonPath+'"'
 if($Mode -ne 'Server'){$arguments+=' -AgentConfig "'+$AgentConfig+'"'}
 $action=New-ScheduledTaskAction -Execute (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -Argument $arguments -WorkingDirectory $root
-$startup=New-ScheduledTaskTrigger -AtStartup
-$recovery=New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
-$recovery.Repetition.Duration=''
+$namespace='Root/Microsoft/Windows/TaskScheduler'
+$startup=New-CimInstance -Namespace $namespace -ClassName MSFT_TaskBootTrigger -ClientOnly -Property @{Enabled=$true}
+$repeat=New-CimInstance -Namespace $namespace -ClassName MSFT_TaskRepetitionPattern -ClientOnly -Property @{Interval='PT5M';StopAtDurationEnd=$false}
+$recovery=New-CimInstance -Namespace $namespace -ClassName MSFT_TaskTimeTrigger -ClientOnly -Property @{Enabled=$true;StartBoundary=(Get-Date).AddMinutes(5).ToString('yyyy-MM-ddTHH:mm:ss');Repetition=$repeat}
 $principal=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 99 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 if($previous){Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue}
