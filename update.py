@@ -14,6 +14,9 @@ FILES = {
     'README.md', 'PRODUCT.md', 'OPERATIONS.md', 'config.example.json',
     'Export-DirectoryInventory.ps1', 'Collect-EndpointSessions.ps1',
     'web/index.html', 'web/login.html', 'web/app.js', 'web/style.css',
+    'agents.py', 'tls_setup.py', 'file_security.py', 'requirements-tls.txt', 'AGENT-SETUP.md',
+    'Send-Report.ps1', 'Setup-Agent.ps1', 'Send-DirectoryInventory.ps1', 'Install-AgentTask.ps1',
+    'START-AGENT.cmd', 'START-DIRECTORY.cmd',
 }
 
 
@@ -44,7 +47,8 @@ def main():
         raise SystemExit('Paket boyutu sınırı aşıldı.')
     archive = zipfile.ZipFile(io.BytesIO(raw))
     entries = {info.filename.partition('/')[2]: info for info in archive.infolist()}
-    required = {'auth.py', 'users.py', 'monitor.py', 'web/app.js', 'web/login.html', 'web/style.css'}
+    required = {'auth.py', 'users.py', 'monitor.py', 'agents.py', 'file_security.py',
+                'Send-Report.ps1', 'Setup-Agent.ps1', 'web/app.js', 'web/login.html', 'web/style.css'}
     if not required <= entries.keys():
         raise SystemExit('Beklenen güncelleme dosyaları bulunamadı.')
     for name in FILES & entries.keys():

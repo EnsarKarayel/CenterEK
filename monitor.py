@@ -20,6 +20,7 @@ from http.cookies import SimpleCookie
 import auth as authentication
 import directory
 import endpoints
+import agents
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parent
@@ -194,7 +195,7 @@ class Store:
                 devices.append(row)
             incidents = [dict(r) for r in self.db.execute('SELECT * FROM incidents ORDER BY id DESC LIMIT 100')]
             return {'devices': devices, 'incidents': incidents, 'alerts': insights.alerts(devices),
-                    'now': time.time(), 'interval': config['interval'], 'version': '0.3.0'}
+                    'now': time.time(), 'interval': config['interval'], 'version': '0.4.0'}
 
 
 def collect(config, store, stop):
@@ -216,9 +217,10 @@ def collect_metrics(config, store, stop):
             stop.wait(60)
 
 
-def handler(store, config, auth):
+def handler(store, config, auth, registry=None):
     if auth is None:
         raise ValueError('Kimlik doğrulama bileşeni gerekli')
+    registry = registry or agents.Registry(store, ROOT)
     class Handler(BaseHTTPRequestHandler):
         def respond(self, status, body=b'', mime='application/json; charset=utf-8', headers=None):
             self.send_response(status)
@@ -241,6 +243,25 @@ def handler(store, config, auth):
                 return ''
 
         def do_POST(self):
+            if self.path in ('/api/agent/endpoint', '/api/agent/directory'):
+                if not isinstance(self.connection, ssl.SSLSocket):
+                    self.respond(403, b'{"error":"HTTPS required"}')
+                    return
+                try:
+                    length = int(self.headers.get('Content-Length', 0))
+                    maximum = 256 * 1024 if self.path.endswith('/endpoint') else 5 * 1024 * 1024
+                    if not 1 <= length <= maximum or self.headers.get_content_type() != 'application/json':
+                        raise ValueError()
+                    payload = json.loads(self.rfile.read(length).decode('utf-8-sig'), parse_constant=lambda x: (_ for _ in ()).throw(ValueError()))
+                    header = self.headers.get('Authorization', '')
+                    token = header[7:] if header.startswith('Bearer ') else ''
+                    status = registry.ingest(token, payload, self.path.rsplit('/', 1)[-1])
+                    self.respond(status, b'{}')
+                except (ValueError, TypeError):
+                    self.respond(400, b'{}')
+                except OSError:
+                    self.respond(503, b'{}')
+                return
             if not auth or self.path not in ('/api/login', '/api/logout'):
                 self.respond(404)
                 return
@@ -298,6 +319,12 @@ def handler(store, config, auth):
                     rows = [dict(r) for r in store.db.execute('SELECT username,role,enabled FROM users')] if auth else []
                 body = json.dumps(rows).encode()
                 mime = 'application/json; charset=utf-8'
+            elif self.path == '/api/agents':
+                if user['role'] != 'admin':
+                    self.respond(403, b'{}')
+                    return
+                body = json.dumps(registry.list(), ensure_ascii=False).encode('utf-8')
+                mime = 'application/json; charset=utf-8'
             elif self.path in ('/app.js', '/style.css'):
                 body = (ROOT / 'web' / self.path[1:]).read_bytes()
                 mime = 'text/javascript; charset=utf-8' if self.path.endswith('.js') else 'text/css; charset=utf-8'
@@ -315,7 +342,8 @@ def handler(store, config, auth):
                 mime = 'text/csv; charset=utf-8'
             elif self.path.startswith('/api/history/'):
                 device = self.path[len('/api/history/'):]
-                if device not in {d['id'] for d in config['devices']}:
+                agent_ids = {'agent-' + a['id'] for a in registry.list() if a['kind'] == 'endpoint'}
+                if device not in {d['id'] for d in config['devices']} | agent_ids:
                     self.send_error(404)
                     return
                 body = json.dumps(store.history(device), ensure_ascii=False).encode('utf-8')
@@ -348,12 +376,21 @@ def handler(store, config, auth):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default=str(ROOT / 'config.local.json'))
-    parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--port', type=int)
     parser.add_argument('--check-config', action='store_true')
-    parser.add_argument('--bind', default='127.0.0.1')
+    parser.add_argument('--bind')
     parser.add_argument('--tls-cert')
     parser.add_argument('--tls-key')
     args = parser.parse_args()
+    network_path = ROOT / 'server.local.json'
+    network = json.loads(network_path.read_text(encoding='utf-8-sig')) if network_path.exists() else {}
+    args.bind = args.bind or network.get('bind', '127.0.0.1')
+    args.port = args.port or network.get('port', 8765)
+    for key in ('tls_cert', 'tls_key'):
+        value = getattr(args, key) or network.get(key)
+        if value:
+            value = str(ROOT / value) if not Path(value).is_absolute() else value
+        setattr(args, key, value)
     config = validate(json.loads(Path(args.config).read_text(encoding='utf-8-sig')))
     if args.check_config:
         print('Yapılandırma geçerli:', len(config['devices']), 'cihaz')

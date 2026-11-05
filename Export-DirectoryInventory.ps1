@@ -1,4 +1,4 @@
-param([string]$OutputFile = "$env:USERPROFILE\Desktop\directory-inventory.json")
+﻿param([string]$OutputFile = "$env:USERPROFILE\Desktop\directory-inventory.json")
 # Run locally on the authorized AD/DHCP/DNS server. Read-only queries only.
 $ErrorActionPreference = 'Stop'
 $result = [ordered]@{

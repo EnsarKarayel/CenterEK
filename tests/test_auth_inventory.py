@@ -40,7 +40,7 @@ class AuthTests(unittest.TestCase):
         return self.client.open(req)
 
     def test_all_data_routes_protected_and_login_logout(self):
-        for route in ['/api/status', '/api/inventory', '/api/sessions', '/api/report.csv', '/api/history/a', '/api/accounts']:
+        for route in ['/api/status', '/api/inventory', '/api/sessions', '/api/report.csv', '/api/history/a', '/api/accounts', '/api/agents']:
             with self.assertRaises(HTTPError) as error:
                 self.client.open(self.base + route)
             self.assertEqual(error.exception.code, 401)
@@ -75,9 +75,10 @@ class AuthTests(unittest.TestCase):
             self.store.db.execute("UPDATE users SET role='viewer'")
         with self.login():
             pass
-        with self.assertRaises(HTTPError) as error:
-            self.client.open(self.base + '/api/accounts')
-        self.assertEqual(error.exception.code, 403)
+        for route in ('/api/accounts', '/api/agents'):
+            with self.assertRaises(HTTPError) as error:
+                self.client.open(self.base + route)
+            self.assertEqual(error.exception.code, 403)
 
     def test_password_not_plaintext_and_disabled_session_revoked(self):
         row = dict(self.store.db.execute('SELECT * FROM users').fetchone())

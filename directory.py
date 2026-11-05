@@ -54,6 +54,7 @@ def load(path):
                              'stale': age > 900, 'collected_at': data['collected_at']})
         return {'status': 'ok', 'collected_at': data['collected_at'], 'stale': age > 900,
                 'domain': str(data.get('domain') or ''), 'netbios': str(data.get('netbios') or ''), 'server': str(data.get('server') or ''),
-                'errors': data.get('errors', []), 'computers': computers, 'users': users, 'clients': rows}
+                'errors': data.get('errors', []), 'computers': computers, 'users': users, 'clients': rows,
+                'authenticated': data.get('authenticated', False), 'received_at': data.get('received_at')}
     except (ValueError, TypeError, KeyError, OSError, AttributeError):
         return {'status': 'error', 'message': 'Dizin dosyası okunamadı veya biçimi geçersiz', 'clients': [], 'computers': []}

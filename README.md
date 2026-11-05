@@ -1,8 +1,14 @@
-# CenterEK Monitor 0.3
+# CenterEK Monitor 0.4
 
 Yerel ağ, fiziksel sunucu ve ağ cihazları için geliştirilmekte olan izleme uygulaması. Ürün yönü ve ticari yayın kabul ölçütleri [PRODUCT.md](PRODUCT.md) dosyasındadır. Bu sürüm pilot içindir.
 
-## 0.3 yenilikleri ve ilk giriş
+## 0.4 otomatik ajan raporları
+
+Uç bilgisayar artık oturum/yerel kart IP/CPU/RAM verisini bilgisayara bağlı ayrı anahtarla HTTPS üzerinden gönderebilir. AD/DHCP/DNS için ayrı otomatik gönderim betiği vardır. Anahtarlar Windows DPAPI ile korunur; panel hesabı ve AD hesapları birbirinden ayrıdır. Bilgisayar kaynak grafikleri ve yöneticiye özel Ajan bağlantıları ekranı eklendi.
+
+Kurulum ve sınırlar: **[AGENT-SETUP.md](AGENT-SETUP.md)**. Önce TLS, sonra bilgisayar kaydı ve yerel kurulum gerekir. Sadece kod güncellemesi mevcut bilgisayarlara ajan kurmaz. Mevcut ayarlar, kullanıcılar ve manuel raporlar korunur.
+
+## Kullanıcı girişi
 
 Sol menü, okunabilir tablolar, FortiGate CPU/RAM ve IP/MAC envanteri; AD kullanıcılarını içe aktarma ve uç bilgisayardan kullanıcı-oturum sorgulama eklendi. AD oturum açma entegrasyonu veya AD'de hesap oluşturma yoktur.
 
