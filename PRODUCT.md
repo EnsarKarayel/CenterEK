@@ -28,6 +28,10 @@ Arayüzler, logolar ve ürün kodları kopyalanmaz; genel iş akışlarından ya
 4. Kesintiler: Başlangıç, doğrulama, geri dönüş ve süre.
 5. Sonraki aşama: doğrulanmış ağ haritası, bildirim kuralları, müşteri/lokasyon seçimi, kurulum sihirbazı.
 
+## 0.5 uygulama durumu
+
+Kullanıcı oturumundan bağımsız SYSTEM görev kurulumu, açılış/kurtarma tetikleyicileri, işlem sarmalayıcısı, dönen günlükler ve arka plan kimlik saklama eklendi. Yeni modern canlı görünüm gerçek ölçüm zamanlarını gösterir; uç ajan varsayılanı 15 saniyedir. Bunlar kod ve yerel test kapsamındadır; hedef sunucuların SYSTEM görevleri ve yeniden başlatma testleri kurulumda tamamlanmalıdır. UNATTENDED.md bu dönüşümü açıklar.
+
 ## 0.4 uygulama durumu
 
 HTTPS ajan alımı, bilgisayara/kaynak türüne bağlı iptal edilebilir anahtarlar, DPAPI istemci ayarı, yerel IP/CPU/RAM raporları ve kaynak geçmişi eklendi. AD raporlaması aynı protokol üzerinden ayrıca çalışabilir. Mevcut kullanıcı oturumuna bağlı zamanlanmış görev betiği hazırlandı; sistem servisi/çok kullanıcılı ajan dağıtımı tamamlanmış değildir. Bu sürümün gerçek ağ dağıtımı ayrıca yapılmalıdır. Kurulum AGENT-SETUP.md içindedir.

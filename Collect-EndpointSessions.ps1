@@ -2,6 +2,7 @@
     [string[]]$ComputerName = @($env:COMPUTERNAME),
     [string]$OutputDirectory = "$PSScriptRoot\data\endpoint-sessions",
     [string]$AgentConfig,
+    [ValidateRange(15,300)][int]$IntervalSeconds=15,
     [switch]$Watch
 )
 # Read Windows interactive sessions using the existing Windows identity.
@@ -94,7 +95,7 @@ do {
         if ($target -notmatch '^[A-Za-z0-9.-]{1,253}$') { throw 'Geçersiz bilgisayar adı' }
         $report = [ordered]@{schema=1; computer=$target; collected_at=(Get-Date).ToUniversalTime().ToString('o');
             source='Windows WTS'; address_source='DNS çözümlemesi'; ips=@(); sessions=@(); status='ok'; error=$null;
-            resources=@{}; interfaces=@(); primary_ip=$null}
+            resources=@{}; interfaces=@(); primary_ip=$null; interval_seconds=$IntervalSeconds}
         try {
             $report.ips = @([System.Net.Dns]::GetHostAddresses($target) | Where-Object {$_.AddressFamily -eq 'InterNetwork'} | ForEach-Object {$_.IPAddressToString})
             $report.sessions = @([CenterEKWTS]::Read($target))
@@ -128,5 +129,5 @@ do {
             catch { Write-Warning 'Rapor gönderilemedi. Ağ, HTTPS güveni ve ajan kaydını kontrol edin; sonraki turda tekrar denenecek.' }
         }
     }
-    if ($Watch) { Start-Sleep -Seconds 60 }
+    if ($Watch) { Start-Sleep -Seconds $IntervalSeconds }
 } while ($Watch)

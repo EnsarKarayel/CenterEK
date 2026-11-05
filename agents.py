@@ -42,6 +42,10 @@ def endpoint_report(data, computer):
               'sessions': [], 'source': 'Kimliği doğrulanmış Windows ajanı',
               'address_source': data.get('address_source') if data.get('address_source') in ('Yerel ağ kartları', 'DNS çözümlemesi') else 'Bilinmiyor', 'resources': {}, 'interfaces': [],
               'error': 'Uç bilgisayar ölçüm hatası' if data['status'] == 'error' else None}
+    interval=data.get('interval_seconds',60)
+    if type(interval) is not int or not 15 <= interval <= 300:
+        raise ValueError('Geçersiz ölçüm aralığı')
+    result['interval_seconds']=interval
     for session in sessions:
         if type(session.get('id')) is not int or type(session.get('state')) is not int or not 0 <= session['state'] <= 9:
             raise ValueError('Geçersiz oturum')

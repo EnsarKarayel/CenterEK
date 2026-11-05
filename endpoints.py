@@ -22,13 +22,16 @@ def load(folder, directory):
                 raise ValueError()
             if not isinstance(data.get('ips', []), list) or not all(isinstance(ip, str) for ip in data.get('ips', [])):
                 raise ValueError()
-            stale = age > 150
+            interval=data.get('interval_seconds',60)
+            interval=interval if type(interval) is int and 15 <= interval <= 300 else 60
+            stale = age > max(150, interval*3)
             computers.append({'computer': data['computer'], 'ips': data.get('ips', []),
                               'status': data['status'], 'error': data.get('error'),
                               'checked': data['collected_at'], 'stale': stale,
                               'resources': data.get('resources', {}), 'interfaces': data.get('interfaces', []),
                               'primary_ip': data.get('primary_ip'), 'authenticated': data.get('authenticated', False),
                               'agent_id': data.get('agent_id'),
+                              'interval_seconds': interval,
                               'received_at': data.get('received_at'), 'address_source': data.get('address_source', 'DNS çözümlemesi')})
             for session in (data['sessions'][:100] if data['status'] == 'ok' else []):
                 account = str(session.get('username') or '')

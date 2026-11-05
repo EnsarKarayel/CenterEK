@@ -1,8 +1,16 @@
-# CenterEK Monitor 0.4
+# CenterEK Monitor 0.5
 
 Yerel ağ, fiziksel sunucu ve ağ cihazları için geliştirilmekte olan izleme uygulaması. Ürün yönü ve ticari yayın kabul ölçütleri [PRODUCT.md](PRODUCT.md) dosyasındadır. Bu sürüm pilot içindir.
 
-## 0.4 otomatik ajan raporları
+## 0.5 — kalıcı arka plan ve canlı dashboard
+
+CenterEK sunucusu ile AD/endpoint göndericisi SYSTEM görevleriyle kullanıcı oturumu kapalıyken çalışabilir. Açılış ve kurtarma tetikleyicileri, işlem yeniden başlatma, dönen dosya günlükleri ve makine kapsamlı DPAPI kimlik dosyaları eklendi. Mevcut kurulumları dönüştürmek için **[UNATTENDED.md](UNATTENDED.md)**.
+
+Genel durum ekranında canlı bağlantı göstergesi, saat, yenileme ilerlemesi, ölçüme dayalı trafik akış grafiği, erişilebilirlik halkası ve güncel uç bilgisayar akışı bulunur. Ekran 5 saniyede, uç envanter 10 saniyede yenilenir. Yeni uç ajan 15 saniyede ölçer; firewall kaynakları yaklaşık 60 saniye, AD yaklaşık 5 dakika aralığında kalır. Ekran animasyonu yeni kaynak ölçümü gibi sunulmaz.
+
+SYSTEM görevleri sunucularda ayrıca kurulmalıdır; sadece ZIP dosyasını güncellemek kalıcı görevi kurmaz. Scriptler gerçek program klasörü için SYSTEM/admin dosya izinleri uygular. AD'de hesap açılmaz. Gerçek sunucularda oturum kapatma/yeniden başlatma doğrulaması kurulumun parçasıdır.
+
+## Otomatik ajan raporları
 
 Uç bilgisayar artık oturum/yerel kart IP/CPU/RAM verisini bilgisayara bağlı ayrı anahtarla HTTPS üzerinden gönderebilir. AD/DHCP/DNS için ayrı otomatik gönderim betiği vardır. Anahtarlar Windows DPAPI ile korunur; panel hesabı ve AD hesapları birbirinden ayrıdır. Bilgisayar kaynak grafikleri ve yöneticiye özel Ajan bağlantıları ekranı eklendi.
 

@@ -7,6 +7,7 @@ import socket
 import urllib.request
 import zipfile
 import argparse
+import json
 
 FILES = {
     'monitor.py', 'auth.py', 'users.py', 'connectors.py', 'directory.py', 'endpoints.py',
@@ -17,6 +18,8 @@ FILES = {
     'agents.py', 'tls_setup.py', 'file_security.py', 'requirements-tls.txt', 'AGENT-SETUP.md',
     'Send-Report.ps1', 'Setup-Agent.ps1', 'Send-DirectoryInventory.ps1', 'Install-AgentTask.ps1',
     'START-AGENT.cmd', 'START-DIRECTORY.cmd',
+    'Install-SystemTask.ps1', 'Run-SystemTask.ps1', 'service_secrets.py', 'UNATTENDED.md',
+    'web/live.js',
 }
 
 
@@ -27,8 +30,13 @@ def main():
     root = Path(__file__).resolve().parent
     if not (root / 'monitor.py').is_file():
         raise SystemExit('Bu dosyayı mevcut CenterEK klasöründe çalıştırın.')
+    network_file=root/'server.local.json'
+    network=json.loads(network_file.read_text(encoding='utf-8-sig')) if network_file.exists() else {}
+    bind=network.get('bind','127.0.0.1')
+    if bind=='0.0.0.0':
+        bind='127.0.0.1'
     try:
-        with socket.create_connection(('127.0.0.1', 8765), timeout=1):
+        with socket.create_connection((bind, network.get('port',8765)), timeout=1):
             raise SystemExit('Önce çalışan CenterEK programını Ctrl+C ile durdurun.')
     except OSError:
         pass

@@ -21,9 +21,11 @@ import auth as authentication
 import directory
 import endpoints
 import agents
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parent
+STARTED_AT = time.time()
 
 
 def validate(config):
@@ -195,7 +197,9 @@ class Store:
                 devices.append(row)
             incidents = [dict(r) for r in self.db.execute('SELECT * FROM incidents ORDER BY id DESC LIMIT 100')]
             return {'devices': devices, 'incidents': incidents, 'alerts': insights.alerts(devices),
-                    'now': time.time(), 'interval': config['interval'], 'version': '0.4.0'}
+                    'now': time.time(), 'interval': config['interval'], 'version': '0.5.0',
+                    'runtime': {'started': STARTED_AT, 'uptime_seconds': round(time.time()-STARTED_AT),
+                                'mode': os.environ.get('CENTEREK_RUN_MODE', 'interactive')}}
 
 
 def collect(config, store, stop):
@@ -325,7 +329,7 @@ def handler(store, config, auth, registry=None):
                     return
                 body = json.dumps(registry.list(), ensure_ascii=False).encode('utf-8')
                 mime = 'application/json; charset=utf-8'
-            elif self.path in ('/app.js', '/style.css'):
+            elif self.path in ('/app.js', '/live.js', '/style.css'):
                 body = (ROOT / 'web' / self.path[1:]).read_bytes()
                 mime = 'text/javascript; charset=utf-8' if self.path.endswith('.js') else 'text/css; charset=utf-8'
             elif self.path == '/api/report.csv':
