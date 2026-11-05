@@ -266,7 +266,7 @@ def handler(store, config, auth, registry=None):
                 except OSError:
                     self.respond(503, b'{}')
                 return
-            if not auth or self.path not in ('/api/login', '/api/logout'):
+            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts'):
                 self.respond(404)
                 return
             expected = auth.public_origin or ('https://' if auth.secure else 'http://') + self.headers.get('Host', '')
@@ -276,6 +276,30 @@ def handler(store, config, auth, registry=None):
             if self.path == '/api/logout':
                 auth.logout(self.token())
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(clear=True)})
+                return
+            if self.path == '/api/accounts':
+                user = auth.user(self.token())
+                if not user or user['role'] != 'admin':
+                    self.respond(403, b'{}')
+                    return
+                try:
+                    length = int(self.headers.get('Content-Length', 0))
+                    if not 1 <= length <= 4096 or self.headers.get_content_type() != 'application/json':
+                        raise ValueError('Geçersiz istek')
+                    payload = json.loads(self.rfile.read(length))
+                    if not isinstance(payload, dict) or any(not isinstance(payload.get(k, ''), str) or len(payload.get(k, '')) > 256 for k in ('current_password', 'username', 'password', 'role', 'action')):
+                        raise ValueError('Geçersiz alan')
+                    check, error = auth.login(user['username'], payload.get('current_password', ''), self.client_address[0])
+                    if error:
+                        self.respond(429 if error == 'limited' else 403, b'{}')
+                        return
+                    auth.logout(check)
+                    auth.manage(user['username'], payload.get('action'), payload.get('username', ''), payload.get('password', ''), payload.get('role', 'viewer'))
+                    self.respond(200, b'{}')
+                except sqlite3.IntegrityError:
+                    self.respond(409, b'{"error":"Account already exists"}')
+                except (ValueError, TypeError):
+                    self.respond(400, b'{"error":"Invalid account operation"}')
                 return
             try:
                 length = int(self.headers.get('Content-Length', 0))
@@ -322,6 +346,24 @@ def handler(store, config, auth, registry=None):
                 with store.lock:
                     rows = [dict(r) for r in store.db.execute('SELECT username,role,enabled FROM users')] if auth else []
                 body = json.dumps(rows).encode()
+                mime = 'application/json; charset=utf-8'
+            elif self.path == '/api/setup':
+                if not user or user['role'] != 'admin':
+                    self.respond(403, b'{}')
+                    return
+                snapshot = store.snapshot(config)
+                imported = directory.load(ROOT / 'data' / 'directory-inventory.json')
+                computers = endpoints.load(ROOT / 'data' / 'endpoint-sessions', imported)['computers']
+                body = json.dumps({'https': isinstance(self.connection, ssl.SSLSocket),
+                                   'sources': [{'name': d['name'], 'host': d.get('host'),
+                                                'kind': d.get('kind'), 'status': d['metrics']['status'],
+                                                'stale': d['metrics'].get('stale', True),
+                                                'checked': d['metrics'].get('checked')}
+                                               for d in snapshot['devices']],
+                                   'directory': {'status': imported.get('status'), 'stale': imported.get('stale', True),
+                                                 'domain': imported.get('domain'), 'users': len(imported.get('users', []))},
+                                   'endpoints': {'reported': len(computers),
+                                                 'current': sum(not c['stale'] and c['status'] == 'ok' for c in computers)}}, ensure_ascii=False).encode('utf-8')
                 mime = 'application/json; charset=utf-8'
             elif self.path == '/api/agents':
                 if user['role'] != 'admin':

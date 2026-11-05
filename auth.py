@@ -21,6 +21,30 @@ class Auth:
             store.db.execute('''CREATE TABLE IF NOT EXISTS users (
                 username TEXT PRIMARY KEY, salt TEXT, digest TEXT, iterations INTEGER,
                 role TEXT, enabled INTEGER DEFAULT 1)''')
+            store.db.execute('CREATE TABLE IF NOT EXISTS account_audit (created REAL, actor TEXT, action TEXT, target TEXT)')
+
+    def manage(self, actor, action, username, password='', role='viewer'):
+        if action == 'create':
+            self.add_user(username, password, role)
+        elif action in ('disable', 'reset'):
+            if action == 'reset' and not 12 <= len(password) <= 256:
+                raise ValueError('Parola 12-256 karakter olmalı')
+            with self.store.lock, self.store.db:
+                row = self.store.db.execute('SELECT role,enabled FROM users WHERE username=?', (username,)).fetchone()
+                if not row:
+                    raise ValueError('Kullanıcı bulunamadı')
+                if action == 'disable':
+                    admins = self.store.db.execute("SELECT COUNT(*) FROM users WHERE role='admin' AND enabled=1").fetchone()[0]
+                    if row['enabled'] and row['role'] == 'admin' and admins <= 1:
+                        raise ValueError('Son aktif yönetici devre dışı bırakılamaz')
+                    self.store.db.execute('UPDATE users SET enabled=0 WHERE username=?', (username,))
+                else:
+                    salt, digest, iterations = self.hash_password(password)
+                    self.store.db.execute('UPDATE users SET salt=?,digest=?,iterations=? WHERE username=?', (salt, digest, iterations, username))
+        else:
+            raise ValueError('Geçersiz işlem')
+        with self.store.lock, self.store.db:
+            self.store.db.execute('INSERT INTO account_audit VALUES (?,?,?,?)', (time.time(), actor, action, username))
 
     @staticmethod
     def hash_password(password, salt=None, iterations=ITERATIONS):
@@ -45,7 +69,7 @@ class Auth:
     def login(self, username, password, address):
         now = time.time()
         # Hold this lock through verification so concurrent requests cannot race
-        # past the attempt threshold. Accounts are changed only through local CLI.
+        # past the attempt threshold.
         with self.lock:
             self.attempts = {k: v for k, v in self.attempts.items() if v[1] > now}
             count, until = self.attempts.get(address, (0, now + 300))

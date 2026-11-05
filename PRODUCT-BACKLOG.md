@@ -153,6 +153,8 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 
 ### Çalışma kaydı
 
+- 2026-11-05: Yönetici panelinde hesap oluşturma, parola yenileme ve devre dışı bırakma; mevcut yönetici parolasıyla yeniden doğrulama, son aktif yönetici koruması ve hesap işlem günlüğü eklendi. Yöneticiye özel Kurulum / Bağlantılar ekranı HTTPS, kaynak ölçümleri, dizin ve uç ajan hazırlığını ve bağlantı gereksinimlerini gösteriyor. Bu ekran yapılandırma değiştiren tam sihirbaz veya Setup.exe değildir. Güvenlik/işlev testleri tests/test_auth_inventory.py içinde. Gerçek tarayıcı kabulü ve müşteri dağıtımı bekliyor.
+
 - 2026-11-05: Ayrı switch ekranı, mantıksal port kutuları, filtre/arama/sıralama/sayfalama; SNMP port açıklaması, yönetim durumu ve yüksek hız alanları eklendi. Node DOM davranış kontrolü geçti. Gerçek switch bağlantısı ve görsel kabul bekliyor. LLDP/FDB, PoE ve SNMPv3 henüz uygulanmadı. SWITCH-MONITORING.md kullanım/sınırları açıklar.
 
 - 2026-11-05: Disk birimi kapasitesi ajan/veri hattı, bilgisayar tablosunda güncel açık kullanıcı ve RAM/disk özetleri, durum/oturum filtreleri, sıralama ve erişim/RAM dashboard bileşenleri uygulandı. 32 Python testi ve JS/PS sözdizimi kontrolleri geçti. Gerçek cihaz ve görsel kabul bekliyor; P0 maddelerinin bütünü tamamlanmadı. Ayrıntılar CHANGES-INVENTORY.md.

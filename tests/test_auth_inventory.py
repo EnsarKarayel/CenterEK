@@ -40,7 +40,7 @@ class AuthTests(unittest.TestCase):
         return self.client.open(req)
 
     def test_all_data_routes_protected_and_login_logout(self):
-        for route in ['/api/status', '/api/inventory', '/api/sessions', '/api/report.csv', '/api/history/a', '/api/accounts', '/api/agents']:
+        for route in ['/api/status', '/api/inventory', '/api/sessions', '/api/report.csv', '/api/history/a', '/api/accounts', '/api/agents', '/api/setup']:
             with self.assertRaises(HTTPError) as error:
                 self.client.open(self.base + route)
             self.assertEqual(error.exception.code, 401)
@@ -63,6 +63,37 @@ class AuthTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             self.login(origin='https://other.invalid')
         self.assertEqual(error.exception.code, 403)
+
+    def test_account_management_requires_admin_reauthentication(self):
+        self.login().close()
+        def change(**fields):
+            data = {'action': 'create', 'username': 'reader', 'password': 'new-password-long',
+                    'current_password': 'test-password-long', 'role': 'viewer'}
+            data.update(fields)
+            return self.client.open(Request(self.base + '/api/accounts', data=json.dumps(data).encode(),
+                                           headers={'Origin': self.base, 'Content-Type': 'application/json'}))
+        with self.assertRaises(HTTPError) as error:
+            change(current_password='incorrect')
+        self.assertEqual(error.exception.code, 403)
+        change().close()
+        token, _ = self.auth.login('reader', 'new-password-long', 'test-client')
+        self.assertIsNotNone(self.auth.user(token))
+        for route in ('/api/accounts', '/api/setup'):
+            with self.assertRaises(HTTPError) as denied:
+                build_opener().open(Request(self.base + route, headers={'Cookie': 'centerek_session=' + token}))
+            self.assertEqual(denied.exception.code, 403)
+        with self.client.open(self.base + '/api/setup') as response:
+            readiness = json.load(response)
+        self.assertFalse(readiness['https'])
+        self.assertNotIn('password', json.dumps(readiness))
+        change(action='disable', username='reader').close()
+        self.assertIsNone(self.auth.user(token))
+        with self.assertRaises(HTTPError) as error:
+            change(action='disable', username='operator')
+        self.assertEqual(error.exception.code, 400)
+        with self.store.lock:
+            rows = [tuple(r) for r in self.store.db.execute('SELECT actor,action,target FROM account_audit')]
+        self.assertEqual(rows, [('operator', 'create', 'reader'), ('operator', 'disable', 'reader')])
 
     def test_failed_login_throttled(self):
         for n in range(6):
