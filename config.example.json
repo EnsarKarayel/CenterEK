@@ -1,0 +1,8 @@
+{
+  "interval": 30,
+  "threshold": 3,
+  "timeout": 2,
+  "devices": [
+    {"id": "server-1", "name": "Örnek sunucu", "host": "192.0.2.10", "kind": "Sunucu", "method": "tcp", "port": 443}
+  ]
+}
