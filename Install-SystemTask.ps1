@@ -1,5 +1,5 @@
 ﻿param([Parameter(Mandatory=$true)][ValidateSet('Server','Directory','Endpoint')][string]$Mode,
-      [string]$AgentConfig,[string]$CACertificate,[string]$PythonPath='C:\Program Files\Python311\python.exe')
+      [string]$AgentConfig,[string]$CACertificate,[string]$PythonPath='C:\Program Files\Python311\python.exe',[string]$ServerExecutable)
 $ErrorActionPreference='Stop'
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not (New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Yönetici CMD ile çalıştırın.' }
@@ -18,9 +18,15 @@ if ($previous -and -not @($previous.Actions | Where-Object {$_.Arguments -and $_
 $legacy=Get-ScheduledTask -TaskName ('CenterEK-'+$Mode.ToLower()) -ErrorAction SilentlyContinue
 if ($legacy -and -not @($legacy.Actions | Where-Object {$_.Arguments -and $_.Arguments.IndexOf($root,[StringComparison]::OrdinalIgnoreCase) -ge 0}).Count) { throw 'Eski görev farklı klasöre bağlı; otomatik değiştirilmedi.' }
 if ($Mode -eq 'Server') {
-    if (-not (Test-Path -LiteralPath $PythonPath)) { throw 'Python yolu bulunamadı.' }
-    if (-not (Test-Path -LiteralPath (Join-Path $root 'start.py'))) { throw 'CenterEK sunucu klasöründe çalıştırın.' }
-    $process=Start-Process -FilePath $PythonPath -ArgumentList @(('"'+(Join-Path $root 'start.py')+'"'),'--non-interactive','--check-config') -WorkingDirectory $root -Wait -PassThru -WindowStyle Hidden
+    if ($ServerExecutable) {
+        $ServerExecutable=(Resolve-Path -LiteralPath $ServerExecutable).Path
+        if ((Split-Path -Parent $ServerExecutable) -ine $root -or $ServerExecutable.Contains('"')) {throw 'Paket uygulaması kurulum klasöründe olmalı.'}
+        $process=Start-Process -FilePath $ServerExecutable -ArgumentList @('--serve','--root',('"'+$root+'"'),'--check-config') -WorkingDirectory $root -Wait -PassThru -WindowStyle Hidden
+    } else {
+        if (-not (Test-Path -LiteralPath $PythonPath)) { throw 'Python yolu bulunamadı.' }
+        if (-not (Test-Path -LiteralPath (Join-Path $root 'start.py'))) { throw 'CenterEK sunucu klasöründe çalıştırın.' }
+        $process=Start-Process -FilePath $PythonPath -ArgumentList @(('"'+(Join-Path $root 'start.py')+'"'),'--non-interactive','--check-config') -WorkingDirectory $root -Wait -PassThru -WindowStyle Hidden
+    }
     if ($process.ExitCode -ne 0) { throw 'Önce service_secrets.py ile arka plan kimliklerini kaydedin; ayarları kontrol edin.' }
     $networkFile=Join-Path $root 'server.local.json'
     $address='127.0.0.1';$port=8765
@@ -50,7 +56,7 @@ if ($Mode -eq 'Server') {
     New-Item -ItemType Directory -Path $secureFolder -Force | Out-Null
     & icacls.exe $secureFolder /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' | Out-Null
     if ($LASTEXITCODE -ne 0) {throw 'Gizli klasör izinleri uygulanamadı.'}
-    $systemConfig=Join-Path $secureFolder 'agent.system.local.json'
+    $systemConfig=Join-Path $secureFolder ('agent.'+$Mode.ToLower()+'.system.local.json')
     [ordered]@{id=$configuration.id;computer=$configuration.computer;kind=$configuration.kind;url=$configuration.url;token_machine=$machine} | ConvertTo-Json | Set-Content -LiteralPath $systemConfig -Encoding UTF8
     $certificate=New-Object Security.Cryptography.X509Certificates.X509Certificate2($CACertificate)
     if (-not @($certificate.Extensions|Where-Object {$_.Oid.Value -eq '2.5.29.19' -and $_.CertificateAuthority}).Count) {throw 'CA sertifikası gerekli.'}
@@ -74,6 +80,7 @@ $backups=Join-Path $root 'data\task-backups'
 New-Item -ItemType Directory -Path $backups -Force | Out-Null
 foreach($item in @($previous,$legacy)) {if($item){Export-ScheduledTask -TaskName $item.TaskName | Set-Content -LiteralPath (Join-Path $backups ($item.TaskName+'-'+(Get-Date -Format yyyyMMddHHmmss)+'.xml')) -Encoding UTF8}}
 $arguments='-NoProfile -WindowStyle Hidden -File "'+$wrapper+'" -Mode '+$Mode+' -PythonPath "'+$PythonPath+'"'
+if($ServerExecutable){$arguments=$arguments.Replace('-NoProfile ','-NoProfile -ExecutionPolicy RemoteSigned ');$arguments+=' -ServerExecutable "'+$ServerExecutable+'"'}
 if($Mode -ne 'Server'){$arguments+=' -AgentConfig "'+$AgentConfig+'"'}
 $action=New-ScheduledTaskAction -Execute (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -Argument $arguments -WorkingDirectory $root
 $namespace='Root/Microsoft/Windows/TaskScheduler'

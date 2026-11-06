@@ -143,3 +143,6 @@ Uygulamayı durdurup data ve yerel config dosyalarını yedekleyin. Ölçümleri
 ## Ticari durum
 
 Açık kaynak lisansı atanmadı; ticari lisans ve şartlar ürün sahibi tarafından belirlenecek. Üçüncü taraf paketlerin lisansları ayrıca geçerlidir. Satış öncesi güvenlik, kurulum/güncelleme, servis çalışma şekli, yedekleme, destek ve yük testleri tamamlanmalıdır.
+# Windows kurulum önizlemesi
+
+Python gerektirmeyen Windows x64 test paketi için [INSTALLATION.md](INSTALLATION.md) dosyasını okuyun. Paket temiz Windows 10/11 veya Server 2019+ üzerinde denenmek üzere hazırlanmıştır; tam temiz-makine/yeniden başlatma kabulü henüz tamamlanmadı. Kaynak derleme: `requirements-build.txt`, `build_windows.py`; çıktılar `data/releases/` altında üretilir ve Git'e eklenmez.

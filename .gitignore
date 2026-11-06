@@ -4,5 +4,9 @@ __pycache__/
 *.pyc
 .venv/
 .vendor/
+.build-tools/
+build/
+dist/
+*.spec
 *.local.*
 certs/

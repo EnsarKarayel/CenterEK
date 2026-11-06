@@ -35,8 +35,8 @@ def validate(config):
         if type(config.get(key)) is not int or not minimum <= config[key] <= maximum:
             raise ValueError('Geçersiz ayar: ' + key)
     devices = config.get('devices', [])
-    if not 1 <= len(devices) <= 256:
-        raise ValueError('1-256 cihaz gerekli')
+    if not 1 <= len(devices) <= 1024:
+        raise ValueError('1-1024 cihaz gerekli')
     ids = set()
     for d in devices:
         ipaddress.ip_address(d['host'])
@@ -159,6 +159,22 @@ class Store:
                                 'errors': values.get('section_errors', []), 'limit': values.get('inventory_limit', 2000)})
                 for client in values.get('clients', []):
                     rows.append(dict(client, firewall=device['name'], checked=metric['checked'], stale=stale))
+            discovered = []
+            for device in config['devices']:
+                if not device.get('discovered'):
+                    continue
+                state = self.db.execute('SELECT * FROM state WHERE id=?', (device['id'],)).fetchone()
+                checked = state['checked'] if state else None
+                stale = checked is None or time.time() - checked > max(180, config.get('interval', 30) * 3)
+                discovered.append({'hostname': device['name'] if device['name'] != device['host'] else None,
+                                   'ip': device['host'], 'mac': None, 'os': None, 'type': device.get('kind'),
+                                   'source': 'Otomatik keşif / erişim', 'checked': checked, 'collected_at': checked,
+                                   'stale': stale, 'online': None if stale or state['status'] not in ('up', 'down') else state['status'] == 'up'})
+            if discovered:
+                rows.extend(discovered)
+                sources.append({'name': 'Otomatik ağ keşfi', 'status': 'ok',
+                                'checked': max((c['checked'] or 0 for c in discovered)),
+                                'stale': all(c['stale'] for c in discovered), 'limit': 1024, 'errors': []})
         imported = directory.load(ROOT / 'data' / 'directory-inventory.json')
         rows.extend(imported.pop('clients', []))
         return {'clients': rows, 'sources': sources, 'directory': imported}
@@ -183,7 +199,7 @@ class Store:
             states = {r['id']: dict(r) for r in self.db.execute('SELECT * FROM state')}
             devices = []
             for d in config['devices']:
-                row = {key: d.get(key) for key in ('id', 'name', 'host', 'kind', 'method', 'port', 'vendor', 'model')}
+                row = {key: d.get(key) for key in ('id', 'name', 'host', 'kind', 'method', 'port', 'vendor', 'model', 'agent_computer')}
                 row['depends_on'] = d.get('depends_on', [])
                 row.update(states.get(d['id'], {'status': 'unknown', 'checked': None}))
                 row['stale'] = row['checked'] is None or time.time() - row['checked'] > config['interval'] * 2 + config['timeout'] + 2
@@ -199,7 +215,7 @@ class Store:
                 devices.append(row)
             incidents = [dict(r) for r in self.db.execute('SELECT * FROM incidents ORDER BY id DESC LIMIT 100')]
             return {'devices': devices, 'incidents': incidents, 'alerts': insights.alerts(devices),
-                    'now': time.time(), 'interval': config['interval'], 'version': '0.5.0',
+                    'now': time.time(), 'interval': config['interval'], 'version': '0.6.0-preview',
                     'runtime': {'started': STARTED_AT, 'uptime_seconds': round(time.time()-STARTED_AT),
                                 'mode': os.environ.get('CENTEREK_RUN_MODE', 'interactive')}}
 
@@ -443,6 +459,14 @@ def handler(store, config, auth, registry=None):
                     self.send_error(503)
                     return
                 mime = 'application/json; charset=utf-8'
+            elif self.path == '/api/discovery-status':
+                path = ROOT / 'data' / 'discovery-status.local.json'
+                try:
+                    value = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'status': 'disabled'}
+                except (ValueError, OSError):
+                    value = {'status': 'error'}
+                body = json.dumps(value).encode('utf-8')
+                mime = 'application/json; charset=utf-8'
             elif self.path == '/':
                 body = (ROOT / 'web' / 'index.html').read_bytes()
                 mime = 'text/html; charset=utf-8'
@@ -508,6 +532,10 @@ def main():
     worker.start()
     metric_worker = threading.Thread(target=collect_metrics, args=(config, store, stop), daemon=True)
     metric_worker.start()
+    if config.get('discovery', {}).get('enabled'):
+        import network_discovery
+        threading.Thread(target=network_discovery.run, args=(ROOT, stop),
+                         kwargs={'config': config, 'config_path': store.config_path, 'validate': validate}, daemon=True).start()
     print('CenterEK: ' + ('https://' if args.tls_cert else 'http://') + args.bind + ':' + str(args.port), flush=True)
     try:
         server.serve_forever()

@@ -10,6 +10,8 @@ import argparse
 import json
 
 FILES = {
+    'installer_core.py', 'setup_app.py', 'build_windows.py', 'network_discovery.py',
+    'Setup-Network.ps1', 'Detect-Networks.ps1', 'requirements-build.txt', 'INSTALLATION.md',
     'UI-CONNECTIONS.md',
     'CONNECTION-PROFILES.md', 'PANEL-ADMIN.md', 'PRODUCT-BACKLOG.md', 'SWITCH-MONITORING.md',
     'device_settings.py', 'collector_settings.py',

@@ -1,0 +1,2 @@
+# Build tooling only; not required on customer computers.
+pyinstaller==6.22.3

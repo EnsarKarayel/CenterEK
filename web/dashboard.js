@@ -25,7 +25,7 @@
  const groups=new Map();for(const d of ds){const key=d.kind||'Diğer';if(!groups.has(key))groups.set(key,{count:0,down:0});const g=groups.get(key);g.count++;if(!d.stale&&d.status==='down')g.down++}table(body('snapshot'),['Tür','Cihaz','Erişim yok'],[...groups].map(([kind,g])=>[kind,g.count,g.down]));
  const serverRows=[];
  for(const d of ds.filter(d=>category(d)==='servers')){
- const matches=pcs.filter(c=>!c.stale&&c.status==='ok'&&(c.ips||[]).includes(d.host));const agent=matches.length===1?matches[0]:null;
+ const matches=pcs.filter(c=>!c.stale&&c.status==='ok'&&((c.ips||[]).includes(d.host)||(d.agent_computer&&c.computer.toUpperCase()===d.agent_computer.toUpperCase())));const agent=matches.length===1?matches[0]:null;
  const m=d.metrics,current=m.status==='ok'&&!m.stale,values=current?m.values:agent?.resources||{};
  const total=values.memory_total_gb,used=values.memory_used_gb,free=Number.isFinite(total)&&Number.isFinite(used)&&used>=0&&used<=total?total-used:null;
  const volumes=current?(values.datastores||[]).map(v=>({name:v.name,total:v.capacity_gb,free:v.free_gb,available:v.accessible!==false})):agent?(agent.volumes||[]).map(v=>({name:v.name,total:v.total_gb,free:v.free_gb,available:true})):[];
