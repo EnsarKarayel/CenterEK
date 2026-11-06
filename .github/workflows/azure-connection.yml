@@ -1,0 +1,27 @@
+name: Azure connection check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  connection:
+    if: github.repository == 'EnsarKarayel/CenterEK' && github.ref == 'refs/heads/main'
+    environment: azure-staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Verify scoped read-only access without deploying resources
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          set -euo pipefail
+          test -n "$RESOURCE_GROUP"
+          az group show --name "$RESOURCE_GROUP" --query '{name:name,location:location,state:properties.provisioningState}' --output json
+          echo '### Azure OIDC connection verified' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Read-only resource-group check passed. No VM or billable application infrastructure was deployed.' >> "$GITHUB_STEP_SUMMARY"

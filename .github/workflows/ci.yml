@@ -24,6 +24,7 @@ jobs:
         run: |
           az bicep install --version v0.48.1
           az bicep build --file infra/azure/main.bicep --outfile /tmp/centerek-azure.json
+          az bicep build --file infra/azure/identity.bicep --outfile /tmp/centerek-identity.json
 
   verify:
     name: Verify Windows / Python ${{ matrix.python }}
