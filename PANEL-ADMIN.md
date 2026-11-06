@@ -1,5 +1,7 @@
 # Panelden hesap yönetimi ve bağlantı hazırlığı
 
+Güncel marka bağımsız destek ve SNMPv3 ayarları için CONNECTION-PROFILES.md dosyasına bakın. SNMPv3 bu güncellemede eklendi; aşağıdaki önceki sürüm notları tarihsel sınırlardır.
+
 Panel kullanıcıları ekranında yönetici hesap oluşturabilir, parolasını yenileyebilir veya devre dışı bırakabilir. Bu işlemler AD hesaplarını değiştirmez.
 
 Her işlem mevcut yöneticinin parolasıyla yeniden doğrulanır. Başarısız doğrulamalar giriş deneme sınırına tabidir. Yeni parolalar 12–256 karakter olmalıdır. Son aktif yönetici kapatılamaz. Parolası değiştirilen veya kapatılan hesabın mevcut oturumları sonraki istekte reddedilir. Başarılı işlemlerde account_audit tablosuna zaman, aktör, işlem ve hedef yazılır; parolalar kayda alınmaz. Kapsamlı değiştirilemez denetim sistemi bu sürümün kapsamı değildir.

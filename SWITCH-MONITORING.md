@@ -1,5 +1,7 @@
 # Switch izleme
 
+Güncelleme: SNMPv3 authPriv desteği eklendi. Güncel kurulum/algoritma kapsamı CONNECTION-PROFILES.md içindedir. Aşağıdaki ilk sürümün v2c sınırı artık yalnızca eski bağlantıları tarif eder.
+
 Switchler / Portlar ekranı, adı veya türü Switch içeren yapılandırılmış cihazların SNMP arayüz verilerini gösterir. Yeni ekran tek başına cihaz keşfetmez veya SNMP kimlik bilgisi oluşturmaz.
 
 ## Mevcut bağlantıya ekleme

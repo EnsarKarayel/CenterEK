@@ -389,6 +389,7 @@ def handler(store, config, auth, registry=None):
                 imported = directory.load(ROOT / 'data' / 'directory-inventory.json')
                 computers = endpoints.load(ROOT / 'data' / 'endpoint-sessions', imported)['computers']
                 body = json.dumps({'https': isinstance(self.connection, ssl.SSLSocket),
+                                   'profiles': collector_settings.PROFILES,
                                    'sources': [{'name': d['name'], 'host': d.get('host'),
                                                 'kind': d.get('kind'), 'status': d['metrics']['status'],
                                                 'stale': d['metrics'].get('stale', True),

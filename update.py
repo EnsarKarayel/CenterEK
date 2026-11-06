@@ -10,6 +10,7 @@ import argparse
 import json
 
 FILES = {
+    'CONNECTION-PROFILES.md', 'PANEL-ADMIN.md', 'PRODUCT-BACKLOG.md', 'SWITCH-MONITORING.md',
     'device_settings.py', 'collector_settings.py',
     'monitor.py', 'auth.py', 'users.py', 'connectors.py', 'directory.py', 'endpoints.py',
     'configure.py', 'discover.py', 'insights.py', 'start.py', 'update.py', 'requirements.txt',

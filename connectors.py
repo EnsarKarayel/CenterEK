@@ -155,12 +155,26 @@ def fortigate(device, settings):
     return result
 
 
+def snmp_auth(settings):
+    from pysnmp.hlapi.v3arch.asyncio import (CommunityData, UsmUserData,
+        usmHMACSHAAuthProtocol, usmHMAC192SHA256AuthProtocol, usmAesCfb128Protocol)
+    version = settings.get('version', '2c')
+    if version == '2c':
+        return CommunityData(secret(settings, 'community'), mpModel=1)
+    if version != '3' or settings.get('auth_protocol', 'sha256') not in ('sha256', 'sha1') or settings.get('privacy_protocol', 'aes128') != 'aes128':
+        raise ValueError('Desteklenmeyen SNMP güvenlik profili')
+    return UsmUserData(secret(settings, 'username'), secret(settings, 'auth_password'),
+                       secret(settings, 'privacy_password'),
+                       authProtocol=usmHMAC192SHA256AuthProtocol if settings.get('auth_protocol', 'sha256') == 'sha256' else usmHMACSHAAuthProtocol,
+                       privProtocol=usmAesCfb128Protocol)
+
+
 async def snmp_async(device, settings):
     from pysnmp.hlapi.v3arch.asyncio import (SnmpEngine, CommunityData, UdpTransportTarget,
                                             ContextData, ObjectType, ObjectIdentity, get_cmd, walk_cmd)
     engine = SnmpEngine()
     try:
-        auth = CommunityData(secret(settings, 'community'), mpModel=1)
+        auth = snmp_auth(settings)
         target = await UdpTransportTarget.create((device['host'], settings.get('port', 161)), timeout=2, retries=0)
 
         async def walk(oid):
@@ -181,7 +195,8 @@ async def snmp_async(device, settings):
                                              ObjectType(ObjectIdentity('1.3.6.1.2.1.1.5.0')))
         if err or status:
             raise RuntimeError('SNMP erişimi başarısız')
-        result = {'hostname': binds[0][1].prettyPrint(), 'interfaces': [], 'protocol': 'SNMPv2c'}
+        result = {'hostname': binds[0][1].prettyPrint(), 'interfaces': [],
+                  'protocol': 'SNMPv3 authPriv' if settings.get('version') == '3' else 'SNMPv2c'}
         roots = {'name': '1.3.6.1.2.1.2.2.1.2', 'oper_status': '1.3.6.1.2.1.2.2.1.8',
                  'admin_status': '1.3.6.1.2.1.2.2.1.7',
                  'alias': '1.3.6.1.2.1.31.1.1.1.18', 'high_speed': '1.3.6.1.2.1.31.1.1.1.15',
