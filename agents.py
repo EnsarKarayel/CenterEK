@@ -71,7 +71,13 @@ def endpoint_report(data, computer):
         ip = str(ipaddress.ip_address(interface['ip']))
         if ip not in result['ips']:
             raise ValueError('Arayüz IP eşleşmiyor')
-        result['interfaces'].append({'ip': ip, 'name': str(interface.get('name', ''))[:120]})
+        transport = interface.get('transport', 'unknown')
+        if transport not in ('wired', 'wireless', 'other', 'unknown'):
+            raise ValueError('Geçersiz ağ türü')
+        mac = interface.get('mac')
+        if mac is not None and (not isinstance(mac, str) or not re.fullmatch(r'(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', mac)):
+            raise ValueError('Geçersiz MAC adresi')
+        result['interfaces'].append({'ip': ip, 'name': str(interface.get('name', ''))[:120], 'transport': transport, 'mac': mac.lower() if mac else None})
     volumes = data.get('volumes', [])
     if not isinstance(volumes, list) or len(volumes) > 128:
         raise ValueError('Geçersiz disk listesi')

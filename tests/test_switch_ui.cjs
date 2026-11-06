@@ -1,16 +1,18 @@
 // Small DOM harness: exercise port filters, stale values and pagination without a server.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const nodes=new Map();
+const nodes=new Map(),events=new Map();
 class Element {
- constructor(tag){this.tag=tag;this.children=[];this.value='';this.dataset={};this.classList={toggle(){}};this.textContent=''}
+ constructor(tag){this.tag=tag;this.children=[];this.value='';this.dataset={};this.style={};this.classList={toggle(){}};this.textContent=''}
+ set textContent(value){this._text=String(value);this.children=[]}get textContent(){return this._text+this.children.map(c=>c.textContent??'').join('')}
  set id(value){this._id=value;nodes.set(value,this)}get id(){return this._id}
  append(...items){for(const item of items){this.children.push(item);if(this.tag==='select'&&this.children.length===1)this.value=item.value}}
+ prepend(...items){this.children.unshift(...items)}
  replaceChildren(...items){this.children=[];this.append(...items)}
  addEventListener(){}setAttribute(){}after(){}scrollIntoView(){}
 }
 for(const id of ['device-search','client-search','ad-search','session-search','logout','live-dashboard']){const e=new Element('div');e.id=id}
 const main=new Element('main');
-const context=vm.createContext({Node:Element,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),querySelectorAll:()=>[],querySelector:()=>main,addEventListener(){}},fetch:()=>new Promise(()=>{}),AbortSignal:{timeout(){}},console,setTimeout(){},Date,Number});
+const context=vm.createContext({Node:Element,document:{getElementById:id=>nodes.get(id),createElement:tag=>new Element(tag),querySelectorAll:()=>[],querySelector:()=>main,addEventListener(name,callback){const list=events.get(name)||[];list.push(callback);events.set(name,list)}},fetch:()=>new Promise(()=>{}),AbortSignal:{timeout(){}},console,setTimeout(){},Date,Number});
 vm.runInContext(fs.readFileSync('web/app.js','utf8'),context);
 assert.equal(vm.runInContext('portMode({oper_status:1,admin_status:1},true)',context),'up');
 assert.equal(vm.runInContext('portMode({oper_status:2,admin_status:1},true)',context),'down');
@@ -26,5 +28,17 @@ assert.equal(nodes.get('switch-ports').children[0].children[1].children.length,5
 const first=nodes.get('switch-ports').children[0].children[1].children[0];
 assert.equal(first.children[4].children[0].textContent,'—');
 nodes.get('switch-search').value='no-match';vm.runInContext('renderSwitches()',context);
-assert.equal(nodes.get('switch-ports').children[0].textContent,'Gösterilecek kayıt yok.');
+assert.ok(nodes.get('switch-ports').textContent.includes('Gösterilecek kayıt yok.'));
+nodes.get('switch-search').value='';vm.runInContext('renderSwitches()',context);
+const input=nodes.get('switch-ports').children[0].children[0].children[1].children[1].children[0];input.value='Port 50';input.oninput();
+assert.equal(nodes.get('switch-ports').children[0].children[1].children.length,1);
+vm.runInContext('renderSwitches()',context);assert.equal(input.value,'Port 50');
+assert.equal(nodes.get('switch-ports').children[0].children[1].children.length,1);
 console.log('Switch UI: pagination, status filters, stale suppression and empty search passed.');
+
+vm.runInContext(fs.readFileSync('web/dashboard.js','utf8'),context);
+vm.runInContext("state.data.alerts=[];state.data.devices[0].metrics.stale=false;state.data.devices[0].metrics.values.memory_percent=50",context);
+events.get('centerek:status').at(-1)();
+const dashboard=main.children.find(c=>c.dataset.section==='dashboard');assert.ok(dashboard);assert.equal(dashboard.children[1].children.length,8);
+assert.ok(dashboard.children[1].children.find(c=>c.dataset.widget==='memory').textContent.includes('50'));
+console.log('Dashboard widgets render real measurements.');

@@ -15,6 +15,11 @@ def candidate(config, payload, validate):
     device = {key: payload.get(key) for key in ('id', 'name', 'host', 'kind', 'method')}
     if any(not isinstance(value, str) for value in device.values()):
         raise ValueError('Geçersiz cihaz alanı')
+    for key in ('vendor', 'model'):
+        if key in payload:
+            if not isinstance(payload[key], str) or len(payload[key]) > 120:
+                raise ValueError('Geçersiz marka/model')
+            device[key] = payload[key].strip()
     if not 1 <= len(device['name']) <= 128 or device['kind'] not in ('Sunucu', 'Linux', 'ESXi', 'Switch', 'Firewall', 'Access point', 'Bilgisayar', 'Diğer'):
         raise ValueError('Geçersiz ad veya tür')
     if device['method'] == 'tcp':

@@ -24,6 +24,16 @@ def report(computer='PC01'):
 
 
 class AgentTests(unittest.TestCase):
+    def test_adapter_connection_type_and_mac_validation(self):
+        data = report()
+        data['interfaces'][0].update(transport='wireless', mac='AA:BB:CC:DD:EE:FF')
+        result = agents.endpoint_report(data, 'PC01')
+        self.assertEqual(result['interfaces'][0]['transport'], 'wireless')
+        self.assertEqual(result['interfaces'][0]['mac'], 'aa:bb:cc:dd:ee:ff')
+        data['interfaces'][0]['mac'] = 'invalid'
+        with self.assertRaises(ValueError):
+            agents.endpoint_report(data, 'PC01')
+
     def test_volume_capacity_validation_and_allowlist(self):
         data = report()
         data['volumes'] = [{'name': 'C:\\', 'format': 'NTFS', 'total_gb': 512,

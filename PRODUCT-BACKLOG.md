@@ -38,6 +38,9 @@ Kabul: iki IP taşıyan tek bilgisayar çoğalmaz; aynı IP'yi sonradan alan cih
 
 ## P0 — Akıllı switchler ve topoloji
 
+- [ ] Otomatik AP keşfi: izin verilen ağlardan DHCP/ARP, SNMP kimliği ve LLDP verisini birleştir; desteklenen model kimliği doğrulanmayan cihazı “AP adayı” olarak tut. Port yanıtı veya üretici adı tek başına AP kanıtı sayılmasın. Toplu izlemeye eklemeden önce sonuç/kimlik bilgisi eşleştirmesi gösterilsin.
+- [ ] Wi-Fi controller/AP entegrasyonu: tüm kablosuz istemciler, SSID, bağlı AP, sinyal ve son görülme. Ajan ağ kartı listesi tüm Wi-Fi ağı envanteri diye sunulmasın.
+
 Kullanıcı tüm switchlerin yönetilebilir olduğunu belirtti. Marka/model, yönetim IP'si ve desteklenen protokoller henüz envanterlenmedi.
 
 - [ ] Arayüzden switch ekleme ve bağlantı testi; SNMPv3 öncelikli, gerektiğinde açıkça seçilen salt okunur SNMPv2c.
@@ -152,6 +155,10 @@ ISO/IEC 27001 uyumu yalnızca yazılımla veya bu listeyle sağlanmış sayılma
 Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağıtım durumunu aşağıya ekle. Maddeleri yalnızca kabul ölçütü doğrulanınca işaretle. Kodun GitHub'a gönderilmesi müşteri sunucusuna dağıtım anlamına gelmez. Bu dosya otomatik çalışma veya zamanlama oluşturmaz; sonraki oturumda devam bağlamı sağlar.
 
 ### Çalışma kaydı
+
+- 2026-11-06: Kullanıcının OpManager referansları doğrultusunda ayrı Dashboard modülü: sağlık halkası/ısı haritası, alarm listesi, altyapı özeti, CPU/RAM/disk sıralamaları, port noktaları ve kullanıcı oturumları eklendi. Widget görünürlüğü tarayıcıda saklanıyor. Daha yoğun, düz kurumsal panel stili uygulandı; eski radar ayrı görünümde korundu. 43 Python testi, JS sözdizimi, filtre/dil/dashboard DOM testleri geçti. Yerel 8767 portunda dashboard/i18n HTTP 200 ve 1 güncel açık oturum doğrulandı. Tarayıcı görsel kabulü, tüm metinlerin çevirisi ve otomatik AP keşfi hâlâ eksik. Eski 8766 deneme işlemiyle karışmaması için yeni yerel önizleme adresi http://127.0.0.1:8767/.
+
+- 2026-11-06: Ortak tablolara yenilemede korunan kolon filtreleri eklendi. TR/EN/FR/DE dil seçimi ve ana menü/başlık/temel kontrol katalogları eklendi; tüm uzun yardım/hata metinleri henüz çevrilmedi. Switch kurulum rehberi ve marka/model alanları eklendi. Radar uç bilgisayar/oturum raporlarını ayrı mantıksal grupta gösteriyor; fiziksel ilişki uydurulmuyor. Ajan Ethernet/Wi-Fi türü ve MAC/IP raporluyor; Kablosuz cihazlar bölümünde tüm adaptörler filtrelenebiliyor. Otomatik AP keşfi uygulanmadı. Yerel ajan gerçek bilgisayardan 1 oturum ve hem wired hem wireless adaptör/MAC raporu verdi. 43 Python testi, dil kataloğu ve kolon filtresi dahil DOM kontrolleri geçti. Görsel tarayıcı kabulü bekliyor. Switch kolon filtreleri mevcut sayfa verisi üzerinde çalışır; tüm sayfalara ortak filtre kapsamı sonraki düzeltmedir.
 
 - 2026-11-06: Marka bağımsız profil/destek matrisi ve genel SNMPv3 authPriv okuyucusu/formu eklendi. SHA-256/AES-128; SHA-1 uyumluluk seçeneği; v2c geriye uyumluluk. 42 Python testi ve switch DOM kontrolü geçti. Gerçek cihazla v3 kabulü bekliyor. CONNECTION-PROFILES.md güncel kapsamı açıklar; önceki kayıtlardaki “SNMPv3 henüz yok” notu artık tarihsel durumdur. Linux/iDRAC ve diğer firewall özel API adaptörleri uygulanmış sayılmaz.
 

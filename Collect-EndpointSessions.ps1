@@ -108,7 +108,10 @@ do {
                         $ip=$address.Address.IPAddressToString
                         if ($address.Address.AddressFamily -ne 'InterNetwork' -or $ip -like '169.254.*') { continue }
                         $report.ips += $ip
-                        $report.interfaces += [ordered]@{name=$nic.Name;ip=$ip}
+                        $transport = if ($nic.NetworkInterfaceType -eq 'Wireless80211') { 'wireless' } elseif ($nic.NetworkInterfaceType -eq 'Ethernet') { 'wired' } else { 'other' }
+                        $rawMac = $nic.GetPhysicalAddress().ToString()
+                        $mac = if ($rawMac.Length -eq 12) { ($rawMac -replace '(..)(?=.)','$1:').ToLowerInvariant() } else { $null }
+                        $report.interfaces += [ordered]@{name=$nic.Name;ip=$ip;transport=$transport;mac=$mac}
                         if (-not $report.primary_ip -and @($properties.GatewayAddresses | Where-Object { $_.Address.ToString() -ne '0.0.0.0' }).Count) { $report.primary_ip=$ip }
                     }
                 }

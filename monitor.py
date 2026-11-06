@@ -183,7 +183,7 @@ class Store:
             states = {r['id']: dict(r) for r in self.db.execute('SELECT * FROM state')}
             devices = []
             for d in config['devices']:
-                row = {key: d.get(key) for key in ('id', 'name', 'host', 'kind', 'method', 'port')}
+                row = {key: d.get(key) for key in ('id', 'name', 'host', 'kind', 'method', 'port', 'vendor', 'model')}
                 row['depends_on'] = d.get('depends_on', [])
                 row.update(states.get(d['id'], {'status': 'unknown', 'checked': None}))
                 row['stale'] = row['checked'] is None or time.time() - row['checked'] > config['interval'] * 2 + config['timeout'] + 2
@@ -353,6 +353,9 @@ def handler(store, config, auth, registry=None):
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(token)})
 
         def do_GET(self):
+            if self.path == '/i18n.js':
+                self.respond(200, (ROOT / 'web' / 'i18n.js').read_bytes(), 'text/javascript; charset=utf-8')
+                return
             if self.path == '/login':
                 self.respond(200, (ROOT / 'web' / 'login.html').read_bytes(), 'text/html; charset=utf-8')
                 return
@@ -406,7 +409,7 @@ def handler(store, config, auth, registry=None):
                     return
                 body = json.dumps(registry.list(), ensure_ascii=False).encode('utf-8')
                 mime = 'application/json; charset=utf-8'
-            elif self.path in ('/app.js', '/live.js', '/style.css'):
+            elif self.path in ('/app.js', '/live.js', '/dashboard.js', '/style.css'):
                 body = (ROOT / 'web' / self.path[1:]).read_bytes()
                 mime = 'text/javascript; charset=utf-8' if self.path.endswith('.js') else 'text/css; charset=utf-8'
             elif self.path == '/api/report.csv':
