@@ -5,11 +5,11 @@ Güncelleme: 2026-11-05. Bu dosya sonraki çalışmaların başlangıç noktası
 
 ## 2026-11-06 · Paylaşılan Azure paneli ve müşteri sürümleri
 
-- [x] Internal ingress ile başlayan, Entra allowlist ve private TLS backend kullanan Azure tarayıcı geçidi şablonu; sabit imaj özeti, sınırlandırılmış nginx yapılandırma üretimi ve CI derleme kontrolü hazırlandı. Canlı yayın değildir.
+- [x] Internal ingress ile başlayan Entra allowlist/private TLS geçidi hazırlandı ve açık kullanıcı onayından sonra Azure HTTPS adresinde yayınlandı. Canlı auth kapsamı, anonim API reddi ve özel backend HTTPS doğrulandı; kullanıcı Microsoft girişinden CenterEK ekranına ulaştığını teyit etti.
 - [x] Tek korumalı main, dal/PR geliştirme ve ayrı müşteri kurulumları yaklaşımı AZURE-BROWSER-ACCESS.md içinde kaydedildi. Müşteri başına bağımsız fork varsayılan dağıtım modeli değildir.
-- [x] Parola içermeyen erişim e-postası taslağı ACCESS-EMAIL-TR.md hazırlandı; gerçek URL henüz yok, gönderilmedi.
-- [ ] Açık kapsam onayından sonra Entra uygulaması, 90 günlük giriş anahtarı ve 0–1 kopyalı Consumption geçidini kur; özel backend TLS ve Windows firewall kapsamını doğrula.
-- [ ] Canlı kimlik kontrolü, izin verilmeyen hesap ve anonim API reddi, onaylı gerçek giriş, MFA politikası, anahtar yenileme takibi ve HTTPS adresinin teslimi.
+- [x] Parola içermeyen erişim e-postası taslağı ACCESS-EMAIL-TR.md gerçek URL ile güncellendi; gönderilmedi.
+- [x] Entra uygulaması, zorunlu kullanıcı ataması, 90 günlük giriş anahtarı ve 0–1 kopyalı Consumption geçidi kuruldu. Özel backend TLS ve Windows firewall kapsamı doğrulandı.
+- [ ] İkinci gerçek hesapla ret testi, panel oturumu kabulü, tenant MFA politikası ve giriş anahtarının 4 Şubat 2027 öncesinde yenilenme takibi.
 
 ## Hedef ve tasarım
 

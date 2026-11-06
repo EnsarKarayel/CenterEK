@@ -56,8 +56,23 @@ an independently drifting main branch for every customer. A genuinely separate
 customer feature can use a branch/PR; forks only when separate ownership is
 intentional. Customer device data and credentials never belong in source control.
 
-## Acceptance still required
+## Live staging acceptance · 6 November 2026
 
-Real browser sign-in, second-account rejection, secret expiry/rotation reminder,
-MFA policy verification and the final public URL must be recorded after actual
-deployment. Compiling this template does not count as publishing the panel.
+Published address:
+https://centerek-browser.wonderfulocean-51ea5b45.swedencentral.azurecontainerapps.io
+
+ARM authentication scope validation, normal TLS validation, anonymous requests
+to `/`, `/api/status`, `/api/inventory`, `/api/accounts` with spoofed identity
+headers, running nginx configuration validation and a real private HTTPS
+backend `/healthz` request passed. The owner confirmed Microsoft sign-in reaches
+the CenterEK login page. External ingress propagation was observed to lag ARM;
+the publication tool now waits and rejects a final 404 or unexpected response.
+
+The enterprise application also requires explicit user assignment. No Graph data
+permissions or Azure management roles are granted by this access path.
+
+The 90-day client secret expires on 4 February 2027 and must be rotated before
+then. The automatic reminder/rotation feature is not implemented. Second-person
+interactive rejection, tenant MFA policy verification, production WAF/rate-limit
+acceptance and the owner's actual panel session remain separate acceptance items.
+No mail was sent; `ACCESS-EMAIL-TR.md` is a password-free handoff draft.

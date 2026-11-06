@@ -1,7 +1,7 @@
 # CenterEK erişim e-postası taslağı
 
-Durum: Gönderilmeye hazır değil. Gerçek HTTPS adresi ve dış giriş testleri
-tamamlandıktan sonra köşeli parantezli alan doldurulmalıdır. Bu dosya parola içermez.
+Durum: HTTPS ve Microsoft girişinden CenterEK ekranına erişim doğrulandı.
+Bu dosya parola içermez; e-posta gönderilmiş değildir.
 
 **Konu:** CenterEK test paneli — erişim bağlantısı ve kullanım
 
@@ -9,7 +9,7 @@ Merhaba,
 
 CenterEK test paneline bilgisayarınıza program kurmadan tarayıcınızdan erişebilirsiniz:
 
-**[DOĞRULANMIŞ AZURE HTTPS ADRESİ BURAYA EKLENECEK]**
+**https://centerek-browser.wonderfulocean-51ea5b45.swedencentral.azurecontainerapps.io**
 
 1. Bağlantıyı güncel Edge, Chrome veya Firefox ile açın.
 2. Erişim izni verilen Microsoft hesabınızla oturum açın. Varsa çok faktörlü
