@@ -30,7 +30,16 @@ resource gatewayVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   location: location
   properties: {
     addressSpace: { addressPrefixes: ['10.43.0.0/16'] }
-    subnets: [{ name: 'gateway', properties: { addressPrefix: '10.43.0.0/23' } }]
+    subnets: [{
+      name: 'gateway'
+      properties: {
+        addressPrefix: '10.43.0.0/23'
+        delegations: [{
+          name: 'container-apps'
+          properties: { serviceName: 'Microsoft.App/environments' }
+        }]
+      }
+    }]
   }
 }
 resource outboundPeering 'Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-05-01' = {
@@ -73,11 +82,12 @@ resource managedEnvironment 'Microsoft.App/managedEnvironments@2025-07-01' = {
   name: '${prefix}-browser-env'
   location: location
   properties: {
+    workloadProfiles: [{ name: 'Consumption', workloadProfileType: 'Consumption' }]
     vnetConfiguration: {
       infrastructureSubnetId: '${gatewayVnet.id}/subnets/gateway'
       internal: false
     }
-    appLogsConfiguration: { destination: 'none' }
+    appLogsConfiguration: {}
   }
 }
 resource gateway 'Microsoft.App/containerApps@2025-07-01' = {
@@ -85,6 +95,7 @@ resource gateway 'Microsoft.App/containerApps@2025-07-01' = {
   location: location
   properties: {
     environmentId: managedEnvironment.id
+    workloadProfileName: 'Consumption'
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
