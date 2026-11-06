@@ -5,6 +5,41 @@ import re
 from pathlib import Path
 
 
+def assert_publishable(auth, *, tenant_id, client_id, principal_ids):
+    """Fail closed before external ingress; use the LIVE ARM authConfig response."""
+    import uuid
+    tenant_id = str(uuid.UUID(tenant_id))
+    client_id = str(uuid.UUID(client_id))
+    expected = {str(uuid.UUID(value)) for value in principal_ids}
+    if not expected:
+        raise ValueError('At least one explicitly approved identity is required')
+    props = auth.get('properties', {})
+    providers = props.get('identityProviders', {})
+    aad = providers.get('azureActiveDirectory', {})
+    registration = aad.get('registration', {})
+    validation = aad.get('validation', {})
+    policy = validation.get('defaultAuthorizationPolicy', {}).get('allowedPrincipals', {})
+    global_policy = props.get('globalValidation', {})
+    checks = (
+        props.get('platform', {}).get('enabled') is True,
+        props.get('httpSettings', {}).get('requireHttps') is True,
+        global_policy.get('unauthenticatedClientAction') == 'RedirectToLoginPage',
+        global_policy.get('redirectToProvider') == 'azureActiveDirectory',
+        not global_policy.get('excludedPaths'),
+        aad.get('enabled') is True,
+        registration.get('clientId', '').lower() == client_id,
+        registration.get('openIdIssuer', '').rstrip('/') == f'https://login.microsoftonline.com/{tenant_id}/v2.0',
+        registration.get('clientSecretSettingName') == 'entra-client-secret',
+        set(validation.get('allowedAudiences', [])) == {client_id},
+        set(policy.get('identities', [])) == expected,
+        not policy.get('groups'),
+        not props.get('login', {}).get('allowedExternalRedirectUrls'),
+        all(not value.get('enabled') for name, value in providers.items() if name != 'azureActiveDirectory'),
+    )
+    if not all(checks):
+        raise ValueError('Live authentication configuration does not match approved access scope')
+
+
 def nginx_config(backend_ip, backend_name, port=8765):
     address = ipaddress.IPv4Address(backend_ip)
     if not any(address in ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')):

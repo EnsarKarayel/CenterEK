@@ -14,5 +14,8 @@ if($existing){
 $rule=Get-NetFirewallRule -Name $name
 $addresses=$rule|Get-NetFirewallAddressFilter
 $ports=$rule|Get-NetFirewallPortFilter
-if([string]$addresses.RemoteAddress -ne '10.43.0.0/23' -or [string]$addresses.LocalAddress -ne '10.42.1.4' -or [string]$ports.LocalPort -ne '8765' -or $rule.Action -ne 'Allow'){throw 'Gateway firewall verification failed'}
+# Windows normalizes CIDR prefixes to dotted netmasks on some versions.
+$remote=@($addresses.RemoteAddress)
+$local=@($addresses.LocalAddress)
+if($remote.Count -ne 1 -or $remote[0] -notin @('10.43.0.0/23','10.43.0.0/255.255.254.0') -or $local.Count -ne 1 -or $local[0] -ne '10.42.1.4' -or [string]$ports.LocalPort -ne '8765' -or [string]$ports.Protocol -ne 'TCP' -or $rule.Action -ne 'Allow' -or $rule.Enabled -ne 'True' -or $rule.Direction -ne 'Inbound'){throw 'Gateway firewall verification failed'}
 Write-Output 'CENTEREK_PRIVATE_GATEWAY_FIREWALL_OK'
