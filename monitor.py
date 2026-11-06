@@ -23,6 +23,7 @@ import endpoints
 import agents
 import device_settings
 import collector_settings
+import network_settings
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -215,7 +216,7 @@ class Store:
                 devices.append(row)
             incidents = [dict(r) for r in self.db.execute('SELECT * FROM incidents ORDER BY id DESC LIMIT 100')]
             return {'devices': devices, 'incidents': incidents, 'alerts': insights.alerts(devices),
-                    'now': time.time(), 'interval': config['interval'], 'version': '0.6.0-preview',
+                    'now': time.time(), 'interval': config['interval'], 'version': '0.6.1-preview',
                     'runtime': {'started': STARTED_AT, 'uptime_seconds': round(time.time()-STARTED_AT),
                                 'mode': os.environ.get('CENTEREK_RUN_MODE', 'interactive')}}
 
@@ -286,18 +287,20 @@ def handler(store, config, auth, registry=None):
                 except OSError:
                     self.respond(503, b'{}')
                 return
-            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts', '/api/devices', '/api/collectors'):
+            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts', '/api/devices', '/api/collectors', '/api/access-settings'):
                 self.respond(404)
                 return
-            expected = auth.public_origin or ('https://' if auth.secure else 'http://') + self.headers.get('Host', '')
-            if self.headers.get('Origin') != expected or self.headers.get('Sec-Fetch-Site') == 'cross-site':
+            expected = {('https://' if auth.secure else 'http://') + self.headers.get('Host', '')}
+            if auth.public_origin:
+                expected.add(auth.public_origin)
+            if self.headers.get('Origin') not in expected or self.headers.get('Sec-Fetch-Site') == 'cross-site':
                 self.respond(403, b'{"error":"Origin rejected"}')
                 return
             if self.path == '/api/logout':
                 auth.logout(self.token())
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(clear=True)})
                 return
-            if self.path in ('/api/accounts', '/api/devices', '/api/collectors'):
+            if self.path in ('/api/accounts', '/api/devices', '/api/collectors', '/api/access-settings'):
                 user = auth.user(self.token())
                 if not user or user['role'] != 'admin':
                     self.respond(403, b'{}')
@@ -314,6 +317,12 @@ def handler(store, config, auth, registry=None):
                         self.respond(429 if error == 'limited' else 403, b'{}')
                         return
                     auth.logout(check)
+                    if self.path == '/api/access-settings':
+                        network_settings.stage(ROOT, payload.get('settings'))
+                        with store.lock, store.db:
+                            store.db.execute('INSERT INTO account_audit VALUES (?,?,?,?)', (time.time(), user['username'], 'access-settings-stage', 'server'))
+                        self.respond(200, b'{"restart_required":true}')
+                        return
                     if self.path == '/api/collectors':
                         if not isinstance(self.connection, ssl.SSLSocket) and not ipaddress.ip_address(self.server.server_address[0]).is_loopback:
                             self.respond(403, b'{}')
@@ -412,6 +421,7 @@ def handler(store, config, auth, registry=None):
                 computers = endpoints.load(ROOT / 'data' / 'endpoint-sessions', imported)['computers']
                 body = json.dumps({'https': isinstance(self.connection, ssl.SSLSocket),
                                    'profiles': collector_settings.PROFILES,
+                                   'access': network_settings.summary(ROOT),
                                    'sources': [{'name': d['name'], 'host': d.get('host'),
                                                 'kind': d.get('kind'), 'status': d['metrics']['status'],
                                                 'stale': d['metrics'].get('stale', True),
@@ -493,6 +503,8 @@ def main():
     parser.add_argument('--tls-cert')
     parser.add_argument('--tls-key')
     args = parser.parse_args()
+    if not args.check_config:
+        network_settings.apply_pending(ROOT)
     network_path = ROOT / 'server.local.json'
     network = json.loads(network_path.read_text(encoding='utf-8-sig')) if network_path.exists() else {}
     args.bind = args.bind or network.get('bind', '127.0.0.1')
@@ -513,7 +525,7 @@ def main():
         parser.error('TLS sertifika ve anahtar birlikte gerekli')
     if not ipaddress.ip_address(args.bind).is_loopback and not args.tls_cert:
         parser.error('Ağdan erişim için TLS sertifika ve anahtar gerekli')
-    auth = authentication.Auth(store, secure=bool(args.tls_cert))
+    auth = authentication.Auth(store, secure=bool(args.tls_cert), public_origin=network.get('public_origin'))
     if not auth.count():
         print('İlk kullanıcıyı oluşturun: python users.py add --role admin')
         store.db.close()

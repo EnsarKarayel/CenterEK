@@ -181,3 +181,8 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 - 2026-11-05: Disk birimi kapasitesi ajan/veri hattı, bilgisayar tablosunda güncel açık kullanıcı ve RAM/disk özetleri, durum/oturum filtreleri, sıralama ve erişim/RAM dashboard bileşenleri uygulandı. 32 Python testi ve JS/PS sözdizimi kontrolleri geçti. Gerçek cihaz ve görsel kabul bekliyor; P0 maddelerinin bütünü tamamlanmadı. Ayrıntılar CHANGES-INVENTORY.md.
 
 - 2026-11-05: Kullanıcının ürünleştirme, global dil, güvenlik, akıllı switch, donanım/oturum envanteri ve dashboard görsel talepleri bu dosyada toplandı. Bu kayıtta yeni uygulama özelliği devreye alınmadı.
+# 2026-11-06 · Uzaktan erişim ayarları
+
+- Uygulandı: yönetici parolasıyla korunan yerel / VPN-LAN / HTTPS ters proxy formu; TR/EN/FR/DE etiketler; yeniden başlatmada uygulama; TLS/IP kapsamı ve port denetimi; başarısız ön kontrolde eski ayarları koruma; işlem günlüğü.
+- Doğrulandı: 54 Python testi ve mevcut iki Node davranış testi. Sandbox içindeki Windows ACL testleri izin hatası verdi; normal kullanıcı bağlamındaki tekrarın tamamı geçti.
+- Açık: gerçek VPN/proxy üzerinde kabul, otomatik sertifika yenileme ve yeni IP sertifikası sihirbazı, yerleşik MFA, proxy başına güvenilir istemci IP politikası, DDoS altyapısı ve güvenlik kabul testi. Ekrandaki dış koruma onayı bu kontrollerin gerçekleştiğini kanıtlamaz.

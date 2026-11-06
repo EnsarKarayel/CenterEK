@@ -14,7 +14,7 @@ import subprocess
 import time
 import urllib.request
 
-VERSION = '0.6.0-preview'
+VERSION = '0.6.1-preview'
 SCRIPTS = ('Install-SystemTask.ps1', 'Run-SystemTask.ps1', 'Collect-EndpointSessions.ps1',
            'Export-DirectoryInventory.ps1', 'Send-DirectoryInventory.ps1', 'Send-Report.ps1', 'Setup-Network.ps1', 'Detect-Networks.ps1')
 

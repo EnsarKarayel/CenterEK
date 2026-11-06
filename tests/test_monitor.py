@@ -7,9 +7,44 @@ import http.cookiejar
 from http.server import ThreadingHTTPServer
 import monitor
 import auth
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+from urllib.error import HTTPError
 
 
 class MonitoringTests(unittest.TestCase):
+    def test_access_settings_require_admin_reauthentication_and_stage_only(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(monitor, 'ROOT', Path(folder)):
+            accounts = auth.Auth(self.store, public_origin='https://panel.example.com')
+            accounts.add_user('access-admin', 'access-test-password', 'admin')
+            server = ThreadingHTTPServer(('127.0.0.1', 0), monitor.handler(self.store, {'devices': []}, accounts))
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                base = 'http://127.0.0.1:' + str(server.server_port)
+                client = build_opener(HTTPCookieProcessor(http.cookiejar.CookieJar()))
+                def post(route, payload, origin=base):
+                    return client.open(Request(base + route, data=json.dumps(payload).encode(), headers={'Origin': origin, 'Content-Type': 'application/json'}))
+                with post('/api/login', {'username': 'access-admin', 'password': 'access-test-password'}, 'https://panel.example.com'):
+                    pass
+                payload = {'current_password': 'wrong-password', 'settings': {'mode': 'local', 'bind': '127.0.0.1', 'port': 9876}}
+                with self.assertRaises(HTTPError) as error:
+                    post('/api/access-settings', payload)
+                self.assertEqual(error.exception.code, 403)
+                payload['current_password'] = 'access-test-password'
+                with self.assertRaises(HTTPError) as error:
+                    post('/api/access-settings', payload, 'https://evil.example.com')
+                self.assertEqual(error.exception.code, 403)
+                with post('/api/access-settings', payload) as response:
+                    self.assertTrue(json.load(response)['restart_required'])
+                self.assertTrue((Path(folder) / 'server.pending.local.json').exists())
+                self.assertFalse((Path(folder) / 'server.local.json').exists())
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join()
+
     def setUp(self):
         self.store = monitor.Store(':memory:')
 

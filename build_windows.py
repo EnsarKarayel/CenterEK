@@ -27,6 +27,7 @@ def main():
     for name in installer_core.SCRIPTS:
         (payload / name).write_text((root / name).read_text(encoding='utf-8-sig'), encoding='utf-8-sig')
     shutil.copy2(root / 'INSTALLATION.md', payload / 'INSTALLATION.md')
+    shutil.copy2(root / 'REMOTE-ACCESS.md', payload / 'REMOTE-ACCESS.md')
     distributions = ('pyinstaller', 'pyvmomi', 'pysnmp', 'cryptography', 'cffi', 'pyasn1', 'urllib3')
     dependencies = {}
     for name in distributions:

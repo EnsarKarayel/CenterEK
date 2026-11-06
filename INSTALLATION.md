@@ -41,3 +41,6 @@ Bu ilk kurulum paketi imzasızdır; güvenlik uyarıları/kurum politikaları ol
 Önizleme yalnızca boş hedef klasöre kurulur. Mevcut CenterEK kurulumu, veritabanı ve sertifikaları üzerine yükseltme yapmaz. Tam yükseltme/geri alma ve kaldırma sihirbazı henüz tamamlanmadı. Hata durumunda tanı için kurulum klasörü korunur; kurulum bazı görevleri/sertifika güvenini oluşturmuş olabilir. Hata ekranından sonra tekrar denemeden önce günlükleri inceleyin. Paket mevcut uygulama klasörü/C sürücüsü kökü/Windows klasörü üzerine kurulmaz.
 
 Sunucu için başlangıçta yalnızca bu makinenin erişim hedefi eklenir. Diğer sunucular, switchler, firewall ve AP'ler panelin Kurulum / Bağlantılar bölümünden tanımlanır. Otomatik AP keşfi, disk seri/WWN ve fiziksel RAID sağlığı bu paketle eklenmiş sayılmaz.
+# Sonradan uzaktan erişim
+
+Kurulumdan sonra yönetici hesabıyla **Kurulum / Bağlantılar → Uzaktan erişim** ekranından yerel, VPN/LAN veya HTTPS ters proxy modu seçilebilir. Ayarlar yeniden başlatmada uygulanır. VPN/proxy altyapısı ayrıca kurulmalıdır; program WAN portlarını otomatik açmaz. Ayrıntılar `REMOTE-ACCESS.md` dosyasındadır.
