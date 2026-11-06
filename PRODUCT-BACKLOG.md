@@ -3,6 +3,14 @@
 Güncelleme: 2026-11-05. Bu dosya sonraki çalışmaların başlangıç noktasıdır.
 İşaretlenmemiş maddeler talep/plan durumundadır; uygulanmış veya sunucuya kurulmuş sayılmaz.
 
+## 2026-11-06 · Paylaşılan Azure paneli ve müşteri sürümleri
+
+- [x] Internal ingress ile başlayan, Entra allowlist ve private TLS backend kullanan Azure tarayıcı geçidi şablonu; sabit imaj özeti, sınırlandırılmış nginx yapılandırma üretimi ve CI derleme kontrolü hazırlandı. Canlı yayın değildir.
+- [x] Tek korumalı main, dal/PR geliştirme ve ayrı müşteri kurulumları yaklaşımı AZURE-BROWSER-ACCESS.md içinde kaydedildi. Müşteri başına bağımsız fork varsayılan dağıtım modeli değildir.
+- [x] Parola içermeyen erişim e-postası taslağı ACCESS-EMAIL-TR.md hazırlandı; gerçek URL henüz yok, gönderilmedi.
+- [ ] Açık kapsam onayından sonra Entra uygulaması, 90 günlük giriş anahtarı ve 0–1 kopyalı Consumption geçidini kur; özel backend TLS ve Windows firewall kapsamını doğrula.
+- [ ] Canlı kimlik kontrolü, izin verilmeyen hesap ve anonim API reddi, onaylı gerçek giriş, MFA politikası, anahtar yenileme takibi ve HTTPS adresinin teslimi.
+
 ## Hedef ve tasarım
 
 Global pazara yönelik, yerinde çalışan altyapı izleme ve operasyon ürünü. Mevcut teknik ad CenterEK; yeni marka için isim, alan adı ve marka araştırması yapılacak. Türkçe, İngilizce, Fransızca ve Almanca zorunlu.
