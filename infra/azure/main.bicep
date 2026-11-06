@@ -19,6 +19,8 @@ param vmSize string = 'Standard_B2s'
 param alertEmail string
 @description('Exact GitHub OIDC sub, including immutable owner/repository IDs when enabled. Never use a wildcard.')
 param githubSubject string
+@description('Keep an existing bootstrap identity in its original region when VM capacity requires a different region.')
+param githubIdentityLocation string = location
 var suffix = uniqueString(resourceGroup().id)
 var vmName = '${prefix}-staging'
 
@@ -192,7 +194,7 @@ resource vmSecretReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 }
 resource pipelineIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${prefix}-github-staging'
-  location: location
+  location: githubIdentityLocation
 }
 resource federation 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
   parent: pipelineIdentity

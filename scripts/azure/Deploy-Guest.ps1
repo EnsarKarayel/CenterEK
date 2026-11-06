@@ -11,6 +11,7 @@ Set-StrictMode -Version Latest
 $root='C:\CenterEK'
 $work='C:\CenterEK-deploy'
 $taskStates=@{}
+if($BlobName -cne ($Commit+'/'+$ArchiveSHA256+'.zip')){throw 'Commit, digest and blob name must match'}
 function Assert-SafeTree([string]$Path){
     $full=[IO.Path]::GetFullPath($Path)
     if($full -ine $root -and -not $full.StartsWith($work+'\',[StringComparison]::OrdinalIgnoreCase) -and $full -ine $work){throw 'Path outside deployment folders'}
@@ -143,6 +144,7 @@ try{
         Stop-Application
         Assert-SafeTree $root;Assert-SafeTree $backup
         $failed=Join-Path $staging 'failed-installation'
+        Assert-SafeTree $failed
         Move-Item -LiteralPath $root -Destination $failed
         Copy-Item -LiteralPath (Join-Path $backup 'CenterEK') -Destination $root -Recurse
         Start-Application

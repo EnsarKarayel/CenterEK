@@ -11,8 +11,17 @@ if($manifest.archive -ne [IO.Path]::GetFileName($manifest.archive)){throw 'Inval
 $archive=Join-Path $ArtifactFolder $manifest.archive
 if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $manifest.sha256){throw 'Artifact digest mismatch'}
 $blob=$Commit+'/'+$manifest.sha256+'.zip'
-& az storage blob upload --auth-mode login --account-name $env:AZURE_STORAGE_ACCOUNT --container-name releases --name $blob --file $archive --overwrite false --only-show-errors --output none
-if($LASTEXITCODE){throw 'Artifact upload failed; refusing deployment'}
+$exists=& az storage blob exists --auth-mode login --account-name $env:AZURE_STORAGE_ACCOUNT --container-name releases --name $blob --query exists --output tsv --only-show-errors
+if($LASTEXITCODE){throw 'Artifact storage check failed; refusing deployment'}
+if($exists -eq 'true'){
+    $metadata=& az storage blob show --auth-mode login --account-name $env:AZURE_STORAGE_ACCOUNT --container-name releases --name $blob --query metadata --output json --only-show-errors
+    if($LASTEXITCODE){throw 'Existing artifact verification failed'}
+    $metadata=$metadata|ConvertFrom-Json
+    if($metadata.sha256 -cne $manifest.sha256 -or $metadata.commit -cne $Commit){throw 'Existing immutable artifact metadata mismatch'}
+}else{
+    & az storage blob upload --auth-mode login --account-name $env:AZURE_STORAGE_ACCOUNT --container-name releases --name $blob --file $archive --metadata ('sha256='+$manifest.sha256) ('commit='+$Commit) --overwrite false --only-show-errors --output none
+    if($LASTEXITCODE){throw 'Artifact upload failed; refusing deployment'}
+}
 $script=Join-Path $PSScriptRoot 'Deploy-Guest.ps1'
 $resultFile=Join-Path $ArtifactFolder 'azure-run-command.json'
 & az vm run-command invoke --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZURE_VM_NAME --command-id RunPowerShellScript --scripts ('@'+$script) --parameters ('StorageAccount='+$env:AZURE_STORAGE_ACCOUNT) ('BlobName='+$blob) ('ArchiveSHA256='+$manifest.sha256) ('Commit='+$Commit) ('VaultName='+$env:AZURE_KEY_VAULT) ('ClientCIDR='+$env:AZURE_CLIENT_CIDR) --output json | Set-Content -LiteralPath $resultFile -Encoding utf8

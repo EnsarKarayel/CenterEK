@@ -192,3 +192,9 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 - Hazırlandı: Azure private Windows VM + storage/Key Vault/managed identity/OIDC/CPU alarmı şablonu; staging dağıtımı; sessiz ilk kurulum; ayar/veri yedeği ve başarısız health kontrolünde geri dönüş. Azure'da henüz uygulanmış sayılmaz; abonelik/kimlik/VPN/maliyet ve gerçek dağıtım kabulü bekliyor.
 - Güvenlik: fork/PR Azure yetkisi almaz. Üretim otomatik dağıtılmaz. Azure staging yalnızca AZURE_DEPLOY_ENABLED=true ve environment kimliğiyle açılır. Kalıcı Azure client secret kullanılmaz. /healthz cihaz/kimlik bilgisi vermez.
 - Yerel doğrulama: 57 Python testi, mevcut UI/dil davranış testleri, 13 PS parse, Bicep 0.48.1 derlemesi ve actionlint kontrolü geçti. Azure'a canlı deploy, rollback tatbikatı, uygulama uptime/Log Analytics, VM dışı yedek ve harcama alarmları henüz tamamlanmadı.
+# 2026-11-06 · Azure bağlantısı canlı kabul
+
+- Tamamlandı: ücretsiz Azure aboneliği API'de Enabled/FreeTrial ve spendingLimit=On; beş gerekli resource provider kaydı; yalnızca staging grubuna Reader erişimi olan OIDC managed identity; GitHub azure-staging ortamında yalnızca main dalı; Azure client secret yok.
+- Doğrulandı: CI gerçek koşusu ve Windows paket/HTTPS smoke testi başarılı. Azure OIDC bağlantı testi ikinci denemede başarılı; yeni GitHub immutable owner/repository kimlikleri tam eşleştirildi. PR #9 ve #10 testlerden sonra birleştirildi.
+- Kullanıcı onayıyla uygulandı: main için yönetici dahil PR + Python 3.11, 3.12 ve Azure şablon kontrolü zorunluluğu; force push/silme kapalı. Sıfır kişi incelemesi zorunlu: tek geliştiricinin kendi PR'ını testlerden sonra birleştirebilmesi korunur.
+- Uygulama VM'si henüz kurulmadı. İlk bölgelerde B2 SKU'ları aboneliğe kapalı bulundu; İsveç B2als v2 için tam what-if başarılı. Mevcut OIDC kimliği Kuzey Avrupa'da kalacak. VM/NAT/disk kaynakları deneme kredisini tüketir; VPN/ofis veri bağlantısı ve gerçek dağıtım/rollback kabulü açık.
