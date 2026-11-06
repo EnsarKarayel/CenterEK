@@ -153,6 +153,8 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 
 ### Çalışma kaydı
 
+- 2026-11-06: Mevcut cihazlar için ESXi/FortiGate/SNMP bağlantı formu, kalıcı kayıtsız salt okunur test ve makine DPAPI korumalı kimlik kaydı eklendi. Yönetici parolası/Origin kontrolü zorunlu; uzak HTTP üzerinden kimlik yapılandırması reddedilir. Başlangıçta korumalı depo yüklenir; yeni ayarlar sonraki kaynak turuna aktarılır. 40 Python testi ve switch DOM kontrolü geçti. Yerel deneme dosyaları güncellendi; gerçek cihaz kimliğiyle ve tarayıcıda form kabulü bekliyor. SNMPv3, ilk kurulum paketi ve sertifika yenileme hâlâ açık işler.
+
 - 2026-11-05: Kurulum ekranına yönetici parolasıyla korunan cihaz ekleme/düzenleme ve ICMP/TCP erişim testi eklendi. Yapılandırma yedeği, atomik kayıt ve canlı toplamada tur başına sabit cihaz listesi uygulandı. Mevcut collector ayarları korunuyor; kimlik bağlı cihazın host değişikliği reddediliyor. 36 Python testi ve switch UI davranış kontrolü geçti. Yerel deneme kopyasına aktarıldı. API/SNMP kimlik formu, tam kurulum paketi ve fiziksel topoloji hâlâ açık işler.
 
 - 2026-11-05: Operasyon ön yüzünde koyu mantıksal izleme radarı, kaynak durumuna bağlı hareketli çizgiler ve tıklanabilir cihaz kartları eklendi. Kart/menü/tablo görsel hiyerarşisi düzenlendi, hareket azaltma ve klavye odak görünürlüğü korundu. Yerel deneme kurulumunun web dosyalarına aktarıldı. JS sözdizimi ve switch DOM testleri geçti; bu değişiklik için görsel tarayıcı kabulü tamamlanmadı. Sonraki iş: kaynak bağlantı düzenleme ve kurulum akışı.

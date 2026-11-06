@@ -10,7 +10,7 @@ import argparse
 import json
 
 FILES = {
-    'device_settings.py',
+    'device_settings.py', 'collector_settings.py',
     'monitor.py', 'auth.py', 'users.py', 'connectors.py', 'directory.py', 'endpoints.py',
     'configure.py', 'discover.py', 'insights.py', 'start.py', 'update.py', 'requirements.txt',
     'README.md', 'PRODUCT.md', 'OPERATIONS.md', 'config.example.json',

@@ -22,6 +22,7 @@ import directory
 import endpoints
 import agents
 import device_settings
+import collector_settings
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -269,7 +270,7 @@ def handler(store, config, auth, registry=None):
                 except OSError:
                     self.respond(503, b'{}')
                 return
-            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts', '/api/devices'):
+            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts', '/api/devices', '/api/collectors'):
                 self.respond(404)
                 return
             expected = auth.public_origin or ('https://' if auth.secure else 'http://') + self.headers.get('Host', '')
@@ -280,7 +281,7 @@ def handler(store, config, auth, registry=None):
                 auth.logout(self.token())
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(clear=True)})
                 return
-            if self.path in ('/api/accounts', '/api/devices'):
+            if self.path in ('/api/accounts', '/api/devices', '/api/collectors'):
                 user = auth.user(self.token())
                 if not user or user['role'] != 'admin':
                     self.respond(403, b'{}')
@@ -297,6 +298,21 @@ def handler(store, config, auth, registry=None):
                         self.respond(429 if error == 'limited' else 403, b'{}')
                         return
                     auth.logout(check)
+                    if self.path == '/api/collectors':
+                        if not isinstance(self.connection, ssl.SSLSocket) and not ipaddress.ip_address(self.server.server_address[0]).is_loopback:
+                            self.respond(403, b'{}')
+                            return
+                        if payload.get('action') == 'test':
+                            result = connectors.read(collector_settings.prepare(config, payload.get('collector')))
+                            self.respond(200, json.dumps({'ok': result['status'] == 'ok', 'error': result.get('error')}).encode())
+                        elif payload.get('action') == 'save':
+                            collector_settings.save(config, payload.get('collector'), getattr(store, 'config_path', ROOT / 'config.local.json'), ROOT / 'data' / 'secure' / 'service-secrets.local.json', validate)
+                            with store.lock, store.db:
+                                store.db.execute('INSERT INTO account_audit VALUES (?,?,?,?)', (time.time(), user['username'], 'collector-save', payload['collector']['id']))
+                            self.respond(200, b'{}')
+                        else:
+                            raise ValueError('Geçersiz işlem')
+                        return
                     if self.path == '/api/devices':
                         if payload.get('action') == 'test':
                             _, device = device_settings.candidate(config, payload.get('device'), validate)
@@ -471,6 +487,9 @@ def main():
         print('İlk kullanıcıyı oluşturun: python users.py add --role admin')
         store.db.close()
         return
+    secret_path = ROOT / 'data' / 'secure' / 'service-secrets.local.json'
+    if secret_path.exists():
+        os.environ.update(collector_settings.service_secrets.load(secret_path))
     stop = threading.Event()
     server = ThreadingHTTPServer((args.bind, args.port), handler(store, config, auth))
     if args.tls_cert:

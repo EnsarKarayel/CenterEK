@@ -95,6 +95,28 @@ class AuthTests(unittest.TestCase):
             rows = [tuple(r) for r in self.store.db.execute('SELECT actor,action,target FROM account_audit')]
         self.assertEqual(rows, [('operator', 'create', 'reader'), ('operator', 'disable', 'reader')])
 
+    def test_collector_test_reauth_and_response_redaction(self):
+        self.config['devices'][0].update(host='192.0.2.1', kind='Firewall', method='tcp', port=443)
+        data = {'action': 'test', 'current_password': 'test-password-long',
+                'collector': {'id': 'a', 'type': 'fortigate', 'port': 4443,
+                              'credentials': {'token': 'do-not-return-token'}}}
+        def request(origin=None):
+            return self.client.open(Request(self.base + '/api/collectors', data=json.dumps(data).encode(),
+                                           headers={'Origin': origin or self.base, 'Content-Type': 'application/json'}))
+        with self.assertRaises(HTTPError) as error:
+            request()
+        self.assertEqual(error.exception.code, 403)
+        self.login().close()
+        with self.assertRaises(HTTPError) as error:
+            request('https://other.invalid')
+        self.assertEqual(error.exception.code, 403)
+        with patch('monitor.connectors.read', return_value={'status': 'ok', 'error': None, 'values': {'token': 'do-not-return-token'}}):
+            with request() as response:
+                body = response.read().decode()
+        self.assertEqual(json.loads(body), {'ok': True, 'error': None})
+        self.assertNotIn('do-not-return-token', body)
+        self.assertNotIn('collector', self.config['devices'][0])
+
     def test_failed_login_throttled(self):
         for n in range(6):
             with self.assertRaises(HTTPError) as error:

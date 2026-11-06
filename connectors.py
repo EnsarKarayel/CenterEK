@@ -49,7 +49,7 @@ def context(settings):
 
 
 def secret(settings, name):
-    value = os.environ.get(settings.get(name + '_env', ''), '')
+    value = settings.get('_credentials', {}).get(name) or os.environ.get(settings.get(name + '_env', ''), '')
     if not value:
         raise ValueError('Eksik ortam değişkeni: ' + name)
     return value
