@@ -146,7 +146,13 @@ try{
         $failed=Join-Path $staging 'failed-installation'
         Assert-SafeTree $failed
         Move-Item -LiteralPath $root -Destination $failed
-        Copy-Item -LiteralPath (Join-Path $backup 'CenterEK') -Destination $root -Recurse
+        # Create a private destination before copying machine-bound credentials.
+        # Copy-Item does not promise to preserve the original root directory ACL.
+        New-Item -ItemType Directory -Path $root|Out-Null
+        Protect-Folder $root
+        Get-ChildItem -LiteralPath (Join-Path $backup 'CenterEK') -Force|ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $root $_.Name) -Recurse
+        }
         Start-Application
         Test-Application
         Write-Output ('CENTEREK_ROLLED_BACK '+$Commit)

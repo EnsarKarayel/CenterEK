@@ -203,3 +203,7 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 - Başarılı: İsveç Standard_D2ls_v5 (2 vCPU/4 GB), Windows Server 2022, özel HTTPS paneli; ilk B2 tahsis hatasından sonra Azure'ın önerdiği boyut kullanıldı. VM running ve spendingLimit=On API'de doğrulandı.
 - Gerçek CI/CD kabulü: [42187032215](https://github.com/EnsarKarayel/CenterEK/actions/runs/42187032215) — testler, paket/HTTPS smoke, OIDC, private blob ve VM agent üzerinden sessiz kurulum/health kontrolü başarılı. AZURE_DEPLOY_ENABLED açıldı; main PR/test korumalı.
 - Yaklaşık 15 dakikalık VM-agent sağlık kontrolü ve çalışan main dağıtımını yeni gönderimlerin iptal etmemesi eklendi. Uygulama Internet'e açık değildir. Ofis VPN yolu, AD/endpoint yeniden kaydı, cihaz kimlikleri ve gerçek ağ kaynaklarının Azure'dan kabulü açık iştir. VM dışı yedek/restore ve bağımsız dış uptime hâlâ açık.
+# 2026-11-06 · Otomatik Azure güncellemesi kabulü
+
+- Başarılı: [42188577322](https://github.com/EnsarKarayel/CenterEK/actions/runs/42188577322) — PR/test/main/paket zincirinden mevcut Azure uygulamasına ikinci dağıtım geçti. İlk kurulumda gerçek yönetici girişi, veri API'leri, bir güncel endpoint raporu ve iki çalışan SYSTEM görevi ayrıca doğrulandı.
+- Başarılı: [42188742960](https://github.com/EnsarKarayel/CenterEK/actions/runs/42188742960) — periyodik sağlık akışı canlı VM'de OK. Gerçek arıza/geri dönüş tatbikatı hâlâ yapılmadı. Geri dönüşte sırlar kopyalanmadan önce hedef kök klasör SYSTEM/admin ACL'siyle hazırlanır.
