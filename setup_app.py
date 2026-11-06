@@ -229,8 +229,13 @@ def main():
     parser.add_argument('--self-test',action='store_true');parser.add_argument('--report')
     parser.add_argument('--preview-wizard',action='store_true')
     parser.add_argument('--check-wizard',action='store_true')
+    parser.add_argument('--unattended-install', help='Protected JSON options file; Azure VM provisioning only')
     args,remaining=parser.parse_known_args()
-    if args.check_wizard:
+    if args.unattended_install:
+        if not args.report or not getattr(sys, 'frozen', False):
+            parser.error('Packaged installer and --report required')
+        raise SystemExit(unattended_install(args.unattended_install, args.report))
+    elif args.check_wizard:
         if not args.report:parser.error('--report required')
         wizard(preview=True,check_report=args.report)
     elif args.serve:
@@ -245,6 +250,25 @@ def main():
             data=json.loads(installed.read_text(encoding='utf-8'))
             if data.get('status')=='ready':webbrowser.open(data['url']);return
         wizard(preview=args.preview_wizard)
+
+
+def unattended_install(options_file, report):
+    """Do not print options, exception messages or the initial administrator secret."""
+    import installer_core
+    options = None
+    try:
+        payload = json.loads(Path(options_file).read_text(encoding='utf-8-sig'))
+        options = installer_core.Options(**payload)
+        payload.clear()
+        url = installer_core.install(options, sys.executable, assets_root(), lambda message: None)
+        result = {'ok': True, 'url': url}
+    except Exception as error:
+        result = {'ok': False, 'error_type': type(error).__name__}
+    finally:
+        if options:
+            options.password = ''
+    Path(report).write_text(json.dumps(result), encoding='utf-8')
+    return 0 if result['ok'] else 1
 
 
 if __name__=='__main__':

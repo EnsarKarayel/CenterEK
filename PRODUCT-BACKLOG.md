@@ -186,3 +186,9 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 - Uygulandı: yönetici parolasıyla korunan yerel / VPN-LAN / HTTPS ters proxy formu; TR/EN/FR/DE etiketler; yeniden başlatmada uygulama; TLS/IP kapsamı ve port denetimi; başarısız ön kontrolde eski ayarları koruma; işlem günlüğü.
 - Doğrulandı: 54 Python testi ve mevcut iki Node davranış testi. Sandbox içindeki Windows ACL testleri izin hatası verdi; normal kullanıcı bağlamındaki tekrarın tamamı geçti.
 - Açık: gerçek VPN/proxy üzerinde kabul, otomatik sertifika yenileme ve yeni IP sertifikası sihirbazı, yerleşik MFA, proxy başına güvenilir istemci IP politikası, DDoS altyapısı ve güvenlik kabul testi. Ekrandaki dış koruma onayı bu kontrollerin gerçekleştiğini kanıtlamaz.
+# 2026-11-06 · Azure / CI-CD
+
+- Uygulandı: dal/PR Windows testleri (3.11/3.12), UI/dil kontrolleri, PowerShell parse, Bicep derlemesi; main üzerinde kurulum paketi ve izole HTTPS smoke testi; hash/veri dışlama; Dependabot. GitHub Actions gerçek koşusu ayrıca takip edilecek.
+- Hazırlandı: Azure private Windows VM + storage/Key Vault/managed identity/OIDC/CPU alarmı şablonu; staging dağıtımı; sessiz ilk kurulum; ayar/veri yedeği ve başarısız health kontrolünde geri dönüş. Azure'da henüz uygulanmış sayılmaz; abonelik/kimlik/VPN/maliyet ve gerçek dağıtım kabulü bekliyor.
+- Güvenlik: fork/PR Azure yetkisi almaz. Üretim otomatik dağıtılmaz. Azure staging yalnızca AZURE_DEPLOY_ENABLED=true ve environment kimliğiyle açılır. Kalıcı Azure client secret kullanılmaz. /healthz cihaz/kimlik bilgisi vermez.
+- Yerel doğrulama: 57 Python testi, mevcut UI/dil davranış testleri, 13 PS parse, Bicep 0.48.1 derlemesi ve actionlint kontrolü geçti. Azure'a canlı deploy, rollback tatbikatı, uygulama uptime/Log Analytics, VM dışı yedek ve harcama alarmları henüz tamamlanmadı.

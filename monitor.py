@@ -378,6 +378,15 @@ def handler(store, config, auth, registry=None):
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(token)})
 
         def do_GET(self):
+            if self.path == '/healthz':
+                try:
+                    with store.lock:
+                        store.db.execute('SELECT 1').fetchone()
+                    healthy = all(worker.is_alive() for worker in getattr(store, 'health_workers', []))
+                except sqlite3.Error:
+                    healthy = False
+                self.respond(200 if healthy else 503, b'{"status":"ok"}' if healthy else b'{"status":"unavailable"}', 'application/json')
+                return
             if self.path == '/theme.css':
                 self.respond(200, (ROOT / 'web' / 'theme.css').read_bytes(), 'text/css; charset=utf-8')
                 return
@@ -544,6 +553,7 @@ def main():
     worker.start()
     metric_worker = threading.Thread(target=collect_metrics, args=(config, store, stop), daemon=True)
     metric_worker.start()
+    store.health_workers = [worker, metric_worker]
     if config.get('discovery', {}).get('enabled'):
         import network_discovery
         threading.Thread(target=network_discovery.run, args=(ROOT, stop),
