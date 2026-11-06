@@ -353,6 +353,9 @@ def handler(store, config, auth, registry=None):
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(token)})
 
         def do_GET(self):
+            if self.path == '/theme.css':
+                self.respond(200, (ROOT / 'web' / 'theme.css').read_bytes(), 'text/css; charset=utf-8')
+                return
             if self.path == '/i18n.js':
                 self.respond(200, (ROOT / 'web' / 'i18n.js').read_bytes(), 'text/javascript; charset=utf-8')
                 return

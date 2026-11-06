@@ -22,7 +22,7 @@ FILES = {
     'Send-Report.ps1', 'Setup-Agent.ps1', 'Send-DirectoryInventory.ps1', 'Install-AgentTask.ps1',
     'START-AGENT.cmd', 'START-DIRECTORY.cmd',
     'Install-SystemTask.ps1', 'Run-SystemTask.ps1', 'service_secrets.py', 'UNATTENDED.md',
-    'web/live.js', 'web/dashboard.js', 'web/i18n.js',
+    'web/live.js', 'web/dashboard.js', 'web/theme.css', 'web/i18n.js',
 }
 
 

@@ -94,6 +94,12 @@ def esxi(device, settings):
              'free_gb': round(ds.summary.freeSpace / 1024**3, 2),
              'accessible': ds.summary.accessible}
             for ds in host.datastore]
+        try:
+            values['network_adapters'] = [{'name': nic.device, 'mac': nic.mac}
+                                           for nic in host.config.network.pnic][:128]
+        except Exception:
+            values['network_adapters'] = []
+            values.setdefault('section_errors', []).append('ESXi ağ kartı MAC bilgileri alınamadı.')
         return values
     finally:
         try:
