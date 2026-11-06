@@ -198,3 +198,8 @@ Her çalışma sonunda değişen dosyalar, test sonucu, kalan sorunlar ve dağı
 - Doğrulandı: CI gerçek koşusu ve Windows paket/HTTPS smoke testi başarılı. Azure OIDC bağlantı testi ikinci denemede başarılı; yeni GitHub immutable owner/repository kimlikleri tam eşleştirildi. PR #9 ve #10 testlerden sonra birleştirildi.
 - Kullanıcı onayıyla uygulandı: main için yönetici dahil PR + Python 3.11, 3.12 ve Azure şablon kontrolü zorunluluğu; force push/silme kapalı. Sıfır kişi incelemesi zorunlu: tek geliştiricinin kendi PR'ını testlerden sonra birleştirebilmesi korunur.
 - Uygulama VM'si henüz kurulmadı. İlk bölgelerde B2 SKU'ları aboneliğe kapalı bulundu; İsveç B2als v2 için tam what-if başarılı. Mevcut OIDC kimliği Kuzey Avrupa'da kalacak. VM/NAT/disk kaynakları deneme kredisini tüketir; VPN/ofis veri bağlantısı ve gerçek dağıtım/rollback kabulü açık.
+# 2026-11-06 · Azure uygulaması ilk canlı dağıtım
+
+- Başarılı: İsveç Standard_D2ls_v5 (2 vCPU/4 GB), Windows Server 2022, özel HTTPS paneli; ilk B2 tahsis hatasından sonra Azure'ın önerdiği boyut kullanıldı. VM running ve spendingLimit=On API'de doğrulandı.
+- Gerçek CI/CD kabulü: [42187032215](https://github.com/EnsarKarayel/CenterEK/actions/runs/42187032215) — testler, paket/HTTPS smoke, OIDC, private blob ve VM agent üzerinden sessiz kurulum/health kontrolü başarılı. AZURE_DEPLOY_ENABLED açıldı; main PR/test korumalı.
+- Yaklaşık 15 dakikalık VM-agent sağlık kontrolü ve çalışan main dağıtımını yeni gönderimlerin iptal etmemesi eklendi. Uygulama Internet'e açık değildir. Ofis VPN yolu, AD/endpoint yeniden kaydı, cihaz kimlikleri ve gerçek ağ kaynaklarının Azure'dan kabulü açık iştir. VM dışı yedek/restore ve bağımsız dış uptime hâlâ açık.
