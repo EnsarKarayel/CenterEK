@@ -1,0 +1,40 @@
+name: Azure application health
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: azure-staging
+  cancel-in-progress: false
+jobs:
+  health:
+    if: github.repository == 'EnsarKarayel/CenterEK' && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true'
+    environment: azure-staging
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Check private HTTPS through the Azure VM agent
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          VM_NAME: ${{ vars.AZURE_VM_NAME }}
+        shell: pwsh
+        run: |
+          if(-not $env:RESOURCE_GROUP -or -not $env:VM_NAME){throw 'Azure target settings missing'}
+          $raw=az vm run-command invoke --resource-group $env:RESOURCE_GROUP --name $env:VM_NAME --command-id RunPowerShellScript --scripts '@scripts/azure/Test-GuestHealth.ps1' --output json
+          if($LASTEXITCODE){throw 'VM agent health request failed'}
+          $result=$raw|ConvertFrom-Json
+          $messages=($result.value|ForEach-Object {$_.message}) -join "`n"
+          if($messages -notmatch 'CENTEREK_HEALTH_OK'){throw 'Application HTTPS, database or worker check failed'}
+          '### Azure application health: OK' >> $env:GITHUB_STEP_SUMMARY
+          'Private HTTPS, database and collection workers passed. This does not imply all monitored devices are healthy.' >> $env:GITHUB_STEP_SUMMARY

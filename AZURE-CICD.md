@@ -1,5 +1,11 @@
 # Azure test ortamı ve CI/CD
 
+## Periyodik uygulama kontrolü
+
+`Azure application health` akışı yaklaşık 15 dakikada bir ve elle çalıştırıldığında, Azure VM agent üzerinden özel HTTPS `/healthz` denetimini yapar. Internet'te uygulama portu açılmaz. Veritabanı ve veri toplama thread'leri sağlıksızsa GitHub işi başarısız olur; bildirim teslimi GitHub hesap izleme tercihlerine bağlıdır. Azure VM agent kullanılamıyorsa bu da başarısız kontrol sayılır. Bu, kullanıcı bilgisayarından VPN yolunun veya cihazların erişiminin testi değildir; GitHub zamanlamaları gecikebilir.
+
+Sağlık ve dağıtım aynı `azure-staging` eşzamanlılık grubunu paylaşır. Yeni main gönderimleri çalışan dağıtımı iptal etmez; eski PR testleri iptal edilebilir. Önceki notlardaki “dışarıdan sürekli uptime denetimi bekliyor” maddesi bağımsız ağ ucu denetimi için hâlâ geçerlidir; VM-agent tabanlı periyodik kontrol ayrıca uygulanmıştır.
+
 ## Kapsam
 
 GitHub kaynak deposu `EnsarKarayel/CenterEK` kalır. GitHub Actions her dal push'unda ve PR'da Windows/Python 3.11–3.12 testlerini, arayüz/dil davranışlarını, PowerShell sözdizimini ve Bicep derlemesini çalıştırır. Fork PR'ları Azure sırrı/kimliği almaz. `pull_request_target` kullanılmaz.
