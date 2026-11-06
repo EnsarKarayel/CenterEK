@@ -17,8 +17,8 @@ param vmAdminPassword string
 param initialPanelPassword string
 param vmSize string = 'Standard_B2s'
 param alertEmail string
-param githubRepository string = 'EnsarKarayel/CenterEK'
-param githubEnvironment string = 'azure-staging'
+@description('Exact GitHub OIDC sub, including immutable owner/repository IDs when enabled. Never use a wildcard.')
+param githubSubject string
 var suffix = uniqueString(resourceGroup().id)
 var vmName = '${prefix}-staging'
 
@@ -199,7 +199,7 @@ resource federation 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedI
   name: 'github-staging'
   properties: {
     issuer: 'https://token.actions.githubusercontent.com'
-    subject: 'repo:${githubRepository}:environment:${githubEnvironment}'
+    subject: githubSubject
     audiences: ['api://AzureADTokenExchange']
   }
 }

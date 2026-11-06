@@ -1,8 +1,8 @@
 targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 param prefix string = 'centerek'
-param githubRepository string = 'EnsarKarayel/CenterEK'
-param githubEnvironment string = 'azure-staging'
+@description('Exact GitHub OIDC subject. New repositories include immutable owner and repository IDs.')
+param githubSubject string
 
 // Identity-only bootstrap: no VM, disk, NAT, public endpoint or client secret.
 resource pipeline 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -14,7 +14,7 @@ resource federation 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedI
   name: 'github-staging'
   properties: {
     issuer: 'https://token.actions.githubusercontent.com'
-    subject: 'repo:${githubRepository}:environment:${githubEnvironment}'
+    subject: githubSubject
     audiences: ['api://AzureADTokenExchange']
   }
 }
