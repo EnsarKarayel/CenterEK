@@ -18,6 +18,8 @@ Azure VNet `10.42.0.0/16`, VM `10.42.1.4`. Bu aralık mevcut ağla çakışmamal
 
 Bağlantı önce ücretli uygulama altyapısı olmadan da sınanabilir: boş test kaynak grubuna `infra/azure/identity.bicep` yalnızca OIDC managed identity ve o gruba Reader rolü kurar. GitHub `azure-staging` ortamına kimlikler/ kaynak grubu girildikten sonra **Azure connection check** elle çalıştırılır. Bu işlem VM/NAT/depolama oluşturmaz. Tam şablon daha sonra aynı kimliği kullanıp yalnızca gereken VM ve artifact container yetkilerini ekler.
 
+Yeni ücretsiz aboneliklerde bölge ve SKU kısıtları olabilir. Kota olması kapasitenin açık olduğunu garanti etmez. Önce `what-if` ve SKU restriction alanları incelenir; farklı bölge gerekiyorsa `githubIdentityLocation` ile önceden kurulan OIDC kimliğinin bölgesi korunur. Kaynak grubu konumu VM bölgesiyle aynı olmak zorunda değildir.
+
 1. Azure ücretsiz abonelik başvurusunu kullanıcı tamamlar; teklif/harcama koruması doğrulanır. Bölge ve maliyet seçilir.
 2. Azure CLI ile kullanıcı oturumu açılır. `az deployment group what-if` sonucuyla şablon incelenir; şifreler komut satırına veya Git'e yazılmaz. Yeni kaynak grubu/şablon uygulaması için abonelikte rol atama hakkı gerekir.
 3. `infra/azure/main.bicep`: özel VM, çıkış NAT'ı, özel release container'ı, Key Vault ilk panel parolası, VM managed identity, GitHub OIDC managed identity ve CPU uyarısı oluşturur. `alertEmail` alıcısı kullanıcı tarafından belirlenmelidir. Şablon tek başına uygulamayı kurmaz.
