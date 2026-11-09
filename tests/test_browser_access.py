@@ -40,6 +40,14 @@ class BrowserAccessTests(unittest.TestCase):
                 'validation': {'allowedAudiences': [client], 'defaultAuthorizationPolicy': {'allowedPrincipals': {'identities': [user]}}}}}}}
         arguments = dict(tenant_id=tenant, client_id=client, principal_ids=[user])
         gateway.assert_publishable(valid, **arguments)
+        same_origin = copy.deepcopy(valid)
+        same_origin['properties']['login'] = {'allowedExternalRedirectUrls': ['https://panel.example']}
+        gateway.assert_publishable(same_origin, **arguments, origin='https://panel.example')
+        with self.assertRaises(ValueError):
+            gateway.assert_publishable(same_origin, **arguments)
+        same_origin['properties']['login']['allowedExternalRedirectUrls'].append('https://untrusted.example')
+        with self.assertRaises(ValueError):
+            gateway.assert_publishable(same_origin, **arguments, origin='https://panel.example')
         changes = [
             (['platform', 'enabled'], False),
             (['httpSettings', 'requireHttps'], False),

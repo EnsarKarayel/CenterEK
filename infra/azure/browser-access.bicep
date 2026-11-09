@@ -171,7 +171,9 @@ resource authentication 'Microsoft.App/containerApps/authConfigs@2025-07-01' = {
     }
     login: {
       preserveUrlFragmentsForLogins: false
-      allowedExternalRedirectUrls: []
+      // Easy Auth also uses this list for browser POST CSRF origin validation.
+      // Only this app's public origin is approved, not a wildcard/external site.
+      allowedExternalRedirectUrls: ['https://${replace(gateway.properties.configuration.ingress.fqdn, '.internal.', '.')}']
       cookieExpiration: { convention: 'FixedTime', timeToExpiration: '08:00:00' }
     }
   }

@@ -91,12 +91,16 @@ def main():
                 raise RuntimeError('Gateway control-plane update did not become ready')
             time.sleep(3)
 
+    app = az('rest', '--method', 'get', '--url', base + api)
+    public_host = app['properties']['configuration']['ingress']['fqdn'].replace('.internal.', '.')
+    if not re.fullmatch(r'[a-z0-9.-]+\.azurecontainerapps\.io', public_host):
+        raise RuntimeError('Unexpected Azure-managed hostname')
+
     def check_auth():
         auth = az('rest', '--method', 'get', '--url', base + '/authConfigs/current' + api)
-        assert_publishable(auth, tenant_id=args.tenant_id, client_id=args.client_id, principal_ids=args.principal_id)
+        assert_publishable(auth, tenant_id=args.tenant_id, client_id=args.client_id, principal_ids=args.principal_id, origin='https://' + public_host)
 
     check_auth()
-    app = az('rest', '--method', 'get', '--url', base + api)
     properties = app['properties']
     if properties.get('provisioningState') != 'Succeeded' or not properties.get('latestReadyRevisionName') or properties.get('latestReadyRevisionName') != properties.get('latestRevisionName'):
         raise RuntimeError('Gateway revision is not ready; external ingress unchanged')

@@ -3,9 +3,10 @@ import argparse
 import ipaddress
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
-def assert_publishable(auth, *, tenant_id, client_id, principal_ids):
+def assert_publishable(auth, *, tenant_id, client_id, principal_ids, origin=None):
     """Fail closed before external ingress; use the LIVE ARM authConfig response."""
     import uuid
     tenant_id = str(uuid.UUID(tenant_id))
@@ -13,6 +14,10 @@ def assert_publishable(auth, *, tenant_id, client_id, principal_ids):
     expected = {str(uuid.UUID(value)) for value in principal_ids}
     if not expected:
         raise ValueError('At least one explicitly approved identity is required')
+    if origin is not None:
+        parsed = urlsplit(origin)
+        if parsed.scheme != 'https' or not parsed.hostname or parsed.netloc != parsed.hostname or parsed.path or parsed.query or parsed.fragment:
+            raise ValueError('Expected an exact public HTTPS origin')
     props = auth.get('properties', {})
     providers = props.get('identityProviders', {})
     aad = providers.get('azureActiveDirectory', {})
@@ -33,7 +38,7 @@ def assert_publishable(auth, *, tenant_id, client_id, principal_ids):
         set(validation.get('allowedAudiences', [])) == {client_id},
         set(policy.get('identities', [])) == expected,
         not policy.get('groups'),
-        not props.get('login', {}).get('allowedExternalRedirectUrls'),
+        props.get('login', {}).get('allowedExternalRedirectUrls', []) in ([], [origin]) if origin else not props.get('login', {}).get('allowedExternalRedirectUrls'),
         all(not value.get('enabled') for name, value in providers.items() if name != 'azureActiveDirectory'),
     )
     if not all(checks):
