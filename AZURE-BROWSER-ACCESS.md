@@ -29,7 +29,8 @@ they are not an upstream WAF or volumetric DDoS protection plan.
    in protected local parameters / Container Apps secret, never Git or email.
 4. Deploy `infra/azure/browser-access.bicep`. It always starts with **internal**
    ingress and mandatory Entra authentication, an explicit user allowlist, no
-   anonymous path exclusions, and no external redirect allowlist.
+   anonymous path exclusions, and a redirect/POST origin list containing only
+   this gateway's exact public HTTPS origin (never a third-party domain).
 5. Add the Windows firewall rule for source `10.43.0.0/23` to private port 8765.
    Never widen the office-client rule or expose VM port 8765 / RDP publicly.
 6. Verify the live auth configuration and ready revision before enabling public
@@ -76,3 +77,21 @@ then. The automatic reminder/rotation feature is not implemented. Second-person
 interactive rejection, tenant MFA policy verification, production WAF/rate-limit
 acceptance and the owner's actual panel session remain separate acceptance items.
 No mail was sent; `ACCESS-EMAIL-TR.md` is a password-free handoff draft.
+
+## Browser POST correction · 9 November 2026
+
+The owner reported that the login page loaded but panel login still failed.
+The initial panel password was verified against the live Key Vault value, and
+a private HTTPS login returned HTTP 200. User-reported POST attempts were not
+seen by the nginx application container. The browser-control integration remains
+unavailable, so an authenticated browser trace has not been captured.
+
+Azure Easy Auth can reject cookie-authenticated browser POSTs during its CSRF
+checks before nginx sees them. Add only this gateway's exact HTTPS origin to
+`login.allowedExternalRedirectUrls`, as described in Microsoft's
+[Easy Auth CSRF documentation](https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization#mitigation-of-cross-site-request-forgery).
+This is the current suspected cause, not yet a completed owner acceptance test.
+The live auth-scope guard and anonymous API rejection passed after the change.
+The guard accepts either an empty list or precisely that expected origin;
+additional redirect domains still fail validation. No password reset, anonymous
+path exemption, user-allowlist expansion or certificate bypass was made.
