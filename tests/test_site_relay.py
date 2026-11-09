@@ -5,6 +5,10 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+import ssl
+import threading
+import http.client
+from http.server import ThreadingHTTPServer
 from unittest.mock import patch
 import agents
 import monitor
@@ -75,6 +79,15 @@ class SiteRelayTests(unittest.TestCase):
         self.assertTrue(rows[0]['stale'])
         self.assertTrue(rows[0]['metrics']['stale'])
         self.assertNotIn('clients', rows[0]['metrics']['values'])
+
+    def test_pending_outage_does_not_block_the_whole_office(self):
+        data = payload()
+        data['devices'][0]['state'].update(status='suspect', failures=1)
+        settings = dict(self.enrollment, url='https://telemetry.example', networks=['192.168.0.0/22'])
+        with patch.object(site_relay, 'snapshot', return_value=data):
+            _, body = site_push.prepare(self.root, settings)
+        self.assertEqual(json.loads(body)['devices'][0]['state']['status'], 'unknown')
+        self.assertEqual(self.registry.ingest(self.enrollment['token'], json.loads(body), 'site'), 202)
 
     def test_replay_revocation_and_duplicate_ids(self):
         data = payload()
@@ -164,6 +177,39 @@ class SiteRelayTests(unittest.TestCase):
         self.assertNotIn(b'HIDDEN', body)
         self.assertNotIn(b'MUST-NOT-LEAVE-OFFICE', body)
         self.assertEqual(self.registry.ingest(self.enrollment['token'], json.loads(body), 'site'), 202)
+
+    def test_https_relay_and_reject_unauthenticated_body_before_reading(self):
+        import auth
+        import tls_setup
+        certs = self.root/'certs'
+        tls_setup.create(certs, 'localhost', ['127.0.0.1'])
+        server = ThreadingHTTPServer(('127.0.0.1', 0), monitor.handler(self.store, {'devices': []},
+            auth.Auth(self.store, secure=True), self.registry))
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certs/'panel-cert.pem', certs/'panel-key.pem')
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        client = ssl.create_default_context(cafile=str(certs/'panel-ca.pem'))
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            connection = http.client.HTTPSConnection('127.0.0.1', server.server_port, context=client, timeout=3)
+            connection.putrequest('POST', '/api/agent/site')
+            connection.putheader('Content-Length', str(site_relay.MAX_BYTES))
+            connection.putheader('Content-Type', 'application/json')
+            connection.endheaders()  # Deliberately send no body; reject by headers.
+            self.assertEqual(connection.getresponse().status, 401)
+            connection.close()
+            settings = dict(self.enrollment, token_machine='protected-test-token',
+                url='https://127.0.0.1:'+str(server.server_port), networks=['192.168.0.0/22'])
+            with patch.object(site_relay, 'snapshot', return_value=payload()), \
+                 patch.object(site_push.service_secrets, 'unprotect', return_value=self.enrollment['token']), \
+                 patch.object(site_push.ssl, 'create_default_context', return_value=client):
+                self.assertGreater(site_push.send(self.root, settings), 100)
+            self.assertEqual(len(site_relay.load_devices(self.root)), 1)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
 
 if __name__ == '__main__':
