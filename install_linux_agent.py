@@ -92,6 +92,8 @@ def install(source):
     with UNIT.open('x',encoding='ascii') as output:output.write(unit)
     UNIT.chmod(0o644)
     subprocess.check_call(['systemd-analyze','verify',str(UNIT)])
+    from install_filesystem_metrics import apply
+    apply(source,restart=False)
     subprocess.check_call(['systemctl','daemon-reload'])
     subprocess.check_call(['systemctl','enable','--now','centerek-agent.service'])
     subprocess.check_call(['systemctl','is-active','--quiet','centerek-agent.service'])

@@ -44,18 +44,8 @@ def collect(computer):
     before=cpu(Path('/proc/stat').read_text());time.sleep(1);after=cpu(Path('/proc/stat').read_text())
     delta=after[0]-before[0]
     resources['cpu_percent']=round(max(0,min(100,100.0*(delta-(after[1]-before[1]))/delta)),1) if delta>0 else None
-    volumes=[];seen=set()
-    # Local mounted filesystems only. No recursive file/database access or NFS probes.
-    for line in Path('/proc/self/mountinfo').read_text().splitlines():
-        left,right=line.split(' - ',1);fields=left.split();fstype=right.split()[0]
-        if fstype not in ('xfs','ext4','ext3','ext2','btrfs') or len(volumes)>=128:continue
-        mount=fields[4].replace('\\040',' ').replace('\\011','\t').replace('\\134','\\')
-        if fields[2] in seen or not os.path.isdir(mount):continue
-        seen.add(fields[2])
-        try:
-            stat=os.statvfs(mount);total=stat.f_blocks*stat.f_frsize;free=max(0,min(total,stat.f_bavail*stat.f_frsize))
-            volumes.append({'name':mount,'format':fstype,'total_gb':round(total/1024.0**3,2),'free_gb':round(free/1024.0**3,2)})
-        except OSError:continue
+    from linux_filesystems import cached, volumes as local_volumes
+    volumes=cached() or local_volumes()
     return {'schema':1,'platform':'linux','computer':computer.upper(),'status':'ok',
         'collected_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'interval_seconds':60,
         'ips':sorted(set(i['ip'] for i in interfaces)), 'interfaces':interfaces,'resources':resources,

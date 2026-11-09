@@ -102,7 +102,7 @@ def endpoint_package(root, assets, computer, url, platform='windows'):
     ca = certificate.parent/'panel-ca.pem'
     if not ca.is_file(): raise ValueError('Office panel CA was not found')
     if platform not in ('windows','linux'): raise ValueError('Unsupported endpoint platform')
-    files = AGENT_FILES if platform=='windows' else ('linux_collector.py','install_linux_agent.py')
+    files = AGENT_FILES if platform=='windows' else ('linux_collector.py','install_linux_agent.py','linux_filesystems.py','install_filesystem_metrics.py')
     for name in files:
         if not (assets/name).is_file(): raise ValueError('Missing agent component: '+name)
     folder = assets/'packages'/computer

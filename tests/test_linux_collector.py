@@ -31,7 +31,7 @@ class LinuxResourceTests(unittest.TestCase):
   self.assertEqual(report['sessions'],[])
   self.assertEqual(report['resources']['memory_percent'],75)
  def test_oracle_linux_python36_syntax_and_service_sandbox(self):
-  for name in ('linux_collector.py','install_linux_agent.py'):
+  for name in ('linux_collector.py','install_linux_agent.py','linux_filesystems.py','install_filesystem_metrics.py'):
    ast.parse((Path(__file__).parents[1]/name).read_text(encoding='utf-8-sig'),feature_version=(3,6))
   unit=install_linux_agent.service_unit('/usr/bin/python3.6')
   for required in ('User=centerek-agent','NoNewPrivileges=true','ProtectSystem=strict','ProtectHome=true','MemoryMax=128M','CPUQuota=5%'):
