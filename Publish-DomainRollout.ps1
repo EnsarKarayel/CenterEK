@@ -31,7 +31,8 @@ $plan=@()
 $seen=@{}
 foreach($row in $manifest.computers){
     $name=[string]$row.computer
-    if($name -notmatch '^[A-Z0-9][A-Z0-9-]{0,14}$' -or $seen.ContainsKey($name)){throw 'Invalid or duplicate manifest computer'}
+    # Case-sensitive ASCII validation avoids Turkish IgnoreCase I/i folding.
+    if($name -cnotmatch '^[A-Z0-9][A-Z0-9-]{0,14}$' -or $seen.ContainsKey($name)){throw 'Invalid or duplicate manifest computer'}
     $seen[$name]=$true
     $folder=Join-Path $Source ('packages\'+$name)
     if(-not(Test-Path -LiteralPath $folder)){continue}
