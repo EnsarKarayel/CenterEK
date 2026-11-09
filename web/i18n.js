@@ -1,6 +1,16 @@
 'use strict';
 (()=>{
 const rows=[
+['AD bilgisayarları ve canlı kullanıcı eşleşmesi','AD computers and live user mapping','Ordinateurs AD et utilisateurs connectés','AD-Computer und aktuelle Benutzerzuordnung'],
+['AD ve DNS envanteri tüm bilgisayarları listeler. Açık kullanıcı yalnızca güncel uç ajanı raporuyla gösterilir.','AD and DNS inventory lists all computers. Signed-in users require a current endpoint report.','L’inventaire AD et DNS répertorie tous les ordinateurs. Les utilisateurs connectés nécessitent un rapport récent de l’agent.','Das AD- und DNS-Inventar listet alle Computer auf. Angemeldete Benutzer benötigen einen aktuellen Agentenbericht.'],
+['Bilgisayar / domain','Computer / domain','Ordinateur / domaine','Computer / Domäne'],
+['AD kaydı','AD record','Entrée AD','AD-Eintrag'],
+['Canlı rapor','Live report','Rapport actuel','Aktueller Bericht'],
+['AD devre dışı','AD computer disabled','Ordinateur AD désactivé','AD-Computer deaktiviert'],
+['AD bilgisayarı','AD computer','Ordinateur AD','AD-Computer'],
+['AD dışında','Outside AD','Hors AD','Außerhalb von AD'],
+['Ajan raporu bekleniyor','Waiting for agent report','En attente du rapport agent','Agentenbericht ausstehend'],
+['Birden fazla rapor','Multiple reports','Plusieurs rapports','Mehrere Berichte'],
 ['Uzaktan erişim','Remote access','Accès à distance','Fernzugriff'],['Erişim modu','Access mode','Mode d’accès','Zugriffsmodus'],['Dinleme IP adresi','Listener IP address','Adresse IP d’écoute','Listener-IP-Adresse'],['Panel portu','Panel port','Port du panneau','Panel-Port'],['Genel HTTPS adresi','Public HTTPS address','Adresse HTTPS publique','Öffentliche HTTPS-Adresse'],['Mevcut yönetici parolası','Current administrator password','Mot de passe administrateur actuel','Aktuelles Administratorpasswort'],['Yalnızca bu bilgisayar','This computer only','Cet ordinateur uniquement','Nur dieser Computer'],['VPN / yerel ağ','VPN / local network','VPN / réseau local','VPN / lokales Netzwerk'],['HTTPS ters proxy','HTTPS reverse proxy','Proxy inverse HTTPS','HTTPS-Reverse-Proxy'],['Erişim ayarlarını kaydet','Save access settings','Enregistrer les paramètres d’accès','Zugriffseinstellungen speichern'],
 ['Ağ geçidinde MFA, hız sınırlama ve arka uç izolasyonunu yapılandırdım.','I configured MFA, rate limiting and backend isolation at the gateway.','J’ai configuré la MFA, la limitation de débit et l’isolation du serveur sur la passerelle.','Ich habe MFA, Ratenbegrenzung und Backend-Isolation am Gateway eingerichtet.'],
 ['VPN veya ters proxy ayrıca kurulmalıdır. Sertifika seçilen IP’yi kapsamalıdır. Modem ve güvenlik duvarı otomatik açılmaz.','Configure the VPN or reverse proxy separately. The certificate must cover the selected IP. Router and firewall ports are not opened automatically.','Configurez séparément le VPN ou le proxy inverse. Le certificat doit couvrir l’IP choisie. Les ports du routeur et du pare-feu ne sont pas ouverts automatiquement.','VPN oder Reverse-Proxy separat einrichten. Das Zertifikat muss die gewählte IP abdecken. Router- und Firewall-Ports werden nicht automatisch geöffnet.'],
