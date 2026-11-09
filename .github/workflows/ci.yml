@@ -73,9 +73,20 @@ jobs:
           "### Windows / Python $env:PYTHON_VERSION" >> $env:GITHUB_STEP_SUMMARY
           "Result: ${{ job.status }}; commit: $env:GITHUB_SHA" >> $env:GITHUB_STEP_SUMMARY
 
+  linux-agent:
+    name: Verify Linux systemd agent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Exercise unattended HTTPS telemetry and private-home capacity
+        run: sudo --preserve-env=GITHUB_ACTIONS /usr/bin/python3 scripts/ci/Test-LinuxAgent.py
+
   package:
     name: Package and HTTPS smoke test
-    needs: [verify, infrastructure]
+    needs: [verify, infrastructure, linux-agent]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'EnsarKarayel/CenterEK'
     runs-on: windows-2022
     timeout-minutes: 25
