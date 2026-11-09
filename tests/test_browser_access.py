@@ -15,6 +15,16 @@ with patch.dict('sys.modules', {'browser_access': gateway}):
 
 
 class BrowserAccessTests(unittest.TestCase):
+    def test_telemetry_ingress_exposes_only_site_post_and_keeps_private_tls(self):
+        config = gateway.telemetry_config('10.42.1.4', 'ce-staging')
+        self.assertIn('location / { return 403; }', config)
+        self.assertIn('location = /api/agent/site {', config)
+        self.assertIn('limit_except POST { deny all; }', config)
+        self.assertIn('proxy_ssl_verify on;', config)
+        self.assertIn('proxy_set_header Authorization $http_authorization;', config)
+        self.assertIn('client_max_body_size 8m;', config)
+        self.assertIn('rate=2r/s;', config)
+
     def test_anonymous_api_and_spoofed_identity_cannot_reach_data(self):
         opener = MagicMock()
         opener.open.side_effect = HTTPError('https://panel.example/api/status', 302, 'Found', {'Location': '/.auth/login/aad'}, None)

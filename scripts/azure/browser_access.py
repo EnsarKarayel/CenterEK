@@ -101,6 +101,18 @@ http {
 '''.replace('BACKEND_NAME', backend_name).replace('BACKEND', str(address)).replace('PORT', str(port))
 
 
+def telemetry_config(backend_ip, backend_name, port=8765):
+    """Only one POST path; valid scoped site tokens are checked by the backend."""
+    config = nginx_config(backend_ip, backend_name, port)
+    config = config.replace('client_max_body_size 8k;', 'client_max_body_size 8m;')
+    config = config.replace('rate=30r/s;', 'rate=2r/s;').replace('burst=60', 'burst=10')
+    config = config.replace('location ^~ /api/agent/ { return 403; }', 'location / { return 403; }')
+    config = config.replace('        location / {\n            proxy_pass',
+        '        location = /api/agent/site {\n            limit_except POST { deny all; }\n            proxy_pass')
+    config = config.replace('proxy_set_header Authorization "";', 'proxy_set_header Authorization $http_authorization;')
+    return config
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--backend-ip', required=True)

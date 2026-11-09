@@ -12,6 +12,7 @@ import re
 import secrets
 import time
 import subprocess
+import site_relay
 from file_security import restrict
 from urllib.parse import urlsplit
 
@@ -124,20 +125,33 @@ def directory_report(data, computer):
 class Registry:
     def __init__(self, store, root):
         self.store, self.root = store, Path(root)
+        store.remote_root = self.root
         with store.lock, store.db:
             store.db.execute('''CREATE TABLE IF NOT EXISTS agents (
                 id TEXT PRIMARY KEY, computer TEXT, kind TEXT, digest TEXT, enabled INTEGER,
                 received REAL, reported REAL, UNIQUE(computer,kind))''')
+            store.db.execute('''CREATE TABLE IF NOT EXISTS site_scopes (
+                agent_id TEXT PRIMARY KEY, networks TEXT NOT NULL,
+                directory_domain TEXT, directory_server TEXT, directory_slot INTEGER UNIQUE)''')
 
-    def register(self, computer, kind):
+    def register(self, computer, kind, *, networks=None, directory_domain=None, directory_server=None):
         computer = host(computer)
-        if kind not in ('endpoint', 'directory'):
+        if kind not in ('endpoint', 'directory', 'site'):
             raise ValueError('Geçersiz ajan türü')
+        if kind == 'site':
+            networks = [str(net) for net in site_relay.networks(networks)]
+            if bool(directory_domain) != bool(directory_server):
+                raise ValueError('Directory domain and server must be specified together')
+            if directory_domain:
+                directory_domain, directory_server = host(directory_domain).lower(), host(directory_server)
         agent_id = secrets.token_hex(12)
         token = agent_id + '.' + secrets.token_urlsafe(32)
         with self.store.lock, self.store.db:
             self.store.db.execute('INSERT INTO agents VALUES (?,?,?,?,1,NULL,NULL)',
                                   (agent_id, computer, kind, hashlib.sha256(token.encode()).hexdigest()))
+            if kind == 'site':
+                self.store.db.execute('INSERT INTO site_scopes VALUES (?,?,?,?,?)',
+                    (agent_id, json.dumps(networks), directory_domain, directory_server, 1 if directory_domain else None))
         return {'id': agent_id, 'computer': computer, 'kind': kind, 'token': token}
 
     def list(self):
@@ -147,6 +161,13 @@ class Registry:
     def revoke(self, agent_id):
         with self.store.lock, self.store.db:
             self.store.db.execute('UPDATE agents SET enabled=0 WHERE id=?', (agent_id,))
+
+    def authenticated(self, token, kind):
+        if not isinstance(token, str) or len(token) > 160:
+            return False
+        with self.store.lock:
+            row = self.store.db.execute('SELECT digest,kind FROM agents WHERE id=? AND enabled=1', (token.split('.')[0],)).fetchone()
+            return bool(row and row['kind'] == kind and hmac.compare_digest(row['digest'], hashlib.sha256(token.encode()).hexdigest()))
 
     def ingest(self, token, data, kind):
         if not isinstance(token, str) or len(token) > 160:
@@ -165,6 +186,13 @@ class Registry:
                     return 409
                 if row['received'] is not None and now - row['received'] < 5:
                     return 429
+                if kind == 'site':
+                    scope = self.store.db.execute('SELECT * FROM site_scopes WHERE agent_id=?', (agent_id,)).fetchone()
+                    if not scope:
+                        return 403
+                    report = site_relay.validate(data, row, json.loads(scope['networks']),
+                        directory_domain=scope['directory_domain'], directory_server=scope['directory_server'])
+                    return self._ingest_site(row, report, now, stamp)
                 report = endpoint_report(data, row['computer']) if kind == 'endpoint' else directory_report(data, row['computer'])
             except (ValueError, KeyError, TypeError, AttributeError):
                 return 400
@@ -199,13 +227,64 @@ class Registry:
                 self.store.db.execute('INSERT INTO metric_samples VALUES (?,?,?)', ('agent-' + agent_id, now, payload))
         return 202
 
+    def _ingest_site(self, agent, report, now, stamp):
+        """Persist only scoped relay data; never poll private office IPs from Azure."""
+        folder = self.root / 'data/sites'
+        folder.mkdir(parents=True, exist_ok=True)
+        if folder.is_symlink():
+            return 400
+        report['received'] = now
+        target = folder / (agent['id'] + '.json')
+        if target.is_symlink():
+            return 400
+        # Atomically publish each file; retain original source timestamps so an
+        # always-connected relay cannot make old AD/endpoint/device data current.
+        def write(destination, payload):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.parent.is_symlink() or destination.is_symlink():
+                raise ValueError('Unsafe relay destination')
+            temporary = destination.with_name(destination.name + '.' + secrets.token_hex(8) + '.tmp')
+            try:
+                with temporary.open('x', encoding='utf-8') as output:
+                    json.dump(payload, output, ensure_ascii=False, allow_nan=False)
+                os.replace(temporary, destination)
+            finally:
+                temporary.unlink(missing_ok=True)
+        for device in report['devices']:
+            checked = device['metrics']['checked']
+            previous = self.store.db.execute('SELECT checked FROM metrics WHERE device=?', (device['id'],)).fetchone()
+            if checked is not None and (not previous or checked > previous['checked']):
+                self.store.record_metrics(device['id'], {key: device['metrics'][key] for key in ('status', 'error', 'values')}, now=checked)
+            last = self.store.db.execute('SELECT MAX(checked) FROM samples WHERE device=?', (device['id'],)).fetchone()[0]
+            if device['checked'] is not None and (last is None or device['checked'] > last):
+                self.store.db.execute('INSERT INTO samples VALUES (?,?,?,?)', (device['id'], device['checked'], int(device['failures'] == 0 and device['status'] == 'up'), device['latency']))
+        if report.get('directory') is not None:
+            directory = dict(report['directory'], authenticated=True, agent_id=agent['id'],
+                             received_at=datetime.datetime.fromtimestamp(now, datetime.timezone.utc).isoformat(),
+                             relay_source=agent['computer'])
+            write(self.root / 'data/directory-inventory.json', directory)
+        for endpoint in report['endpoints']:
+            endpoint.update(authenticated=True, received_at=datetime.datetime.fromtimestamp(now, datetime.timezone.utc).isoformat())
+            write(self.root / 'data/endpoint-sessions' / (endpoint['agent_id'] + '.json'), endpoint)
+            checked = timestamp(endpoint['collected_at'])
+            key = 'agent-' + endpoint['agent_id']
+            previous = self.store.db.execute('SELECT checked FROM metrics WHERE device=?', (key,)).fetchone()
+            if not previous or checked > previous['checked']:
+                self.store.record_metrics(key, {'status': endpoint['status'], 'error': endpoint.get('error'), 'values': endpoint['resources']}, now=checked)
+        write(target, report)
+        self.store.db.execute('UPDATE agents SET received=?,reported=? WHERE id=?', (now, stamp, agent['id']))
+        return 202
+
 
 def main():
     import monitor
     parser = argparse.ArgumentParser(description='CenterEK ajan kaydı; AD hesabı oluşturmaz')
     parser.add_argument('action', choices=['register', 'list', 'revoke'])
     parser.add_argument('--computer')
-    parser.add_argument('--kind', choices=['endpoint', 'directory'], default='endpoint')
+    parser.add_argument('--kind', choices=['endpoint', 'directory', 'site'], default='endpoint')
+    parser.add_argument('--network', action='append', help='Explicit private office network for site relay')
+    parser.add_argument('--directory-domain')
+    parser.add_argument('--directory-server')
     parser.add_argument('--url')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--id')
@@ -229,8 +308,11 @@ def main():
             if args.output.exists():
                 parser.error('Mevcut kayıt dosyasının üzerine yazılmaz')
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            record = registry.register(args.computer, args.kind)
+            record = registry.register(args.computer, args.kind, networks=args.network,
+                                       directory_domain=args.directory_domain, directory_server=args.directory_server)
             record['url'] = args.url.rstrip('/')
+            if args.kind == 'site':
+                record.update(networks=args.network, directory_domain=args.directory_domain, directory_server=args.directory_server)
             with args.output.open('x', encoding='utf-8') as output:
                 json.dump(record, output, indent=2)
             try:

@@ -230,7 +230,14 @@ def main():
     parser.add_argument('--preview-wizard',action='store_true')
     parser.add_argument('--check-wizard',action='store_true')
     parser.add_argument('--unattended-install', help='Protected JSON options file; Azure VM provisioning only')
+    parser.add_argument('--site-register', help='OS-admin-only site enrollment options; encrypted output only')
     args,remaining=parser.parse_known_args()
+    if args.site_register:
+        if not args.root or not args.report:
+            parser.error('--root and --report required')
+        import site_enrollment
+        site_enrollment.create(args.root, args.site_register, args.report)
+        return
     if args.unattended_install:
         if not args.report or not getattr(sys, 'frozen', False):
             parser.error('Packaged installer and --report required')
