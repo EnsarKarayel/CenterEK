@@ -67,6 +67,10 @@ def main():
         private=subprocess.check_output(['systemctl','show','centerek-filesystems.service','--property=PrivateNetwork','--value'],text=True).strip()
         assert private=='yes','Filesystem service is not network-isolated'
         print('LINUX_SYSTEMD_ACCEPTANCE_OK: verified HTTPS, private-home capacity, separate UIDs and credential/cache isolation')
+    except Exception:
+        for unit in ('centerek-filesystems.service','centerek-agent.service'):
+            subprocess.run(['journalctl','-u',unit,'-n','35','--no-pager'])
+        raise
     finally:
         for unit in ('centerek-agent.service','centerek-filesystems.timer','centerek-filesystems.service'):
             subprocess.run(['systemctl','stop',unit],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
