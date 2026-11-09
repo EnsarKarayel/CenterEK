@@ -38,7 +38,8 @@ def collect(computer):
         for addr in adapter.get('addr_info',[]):
             if addr.get('scope')!='global':continue
             interfaces.append({'ip':addr['local'],'name':adapter['ifname'],'mac':adapter.get('address'),
-                'transport':'wireless' if (Path('/sys/class/net')/adapter['ifname']/'wireless').exists() else 'wired'})
+                'transport':('wireless' if (Path('/sys/class/net')/adapter['ifname']/'wireless').exists() else
+                             'wired' if (Path('/sys/class/net')/adapter['ifname']/'device').exists() else 'other')})
     resources=memory(Path('/proc/meminfo').read_text())
     before=cpu(Path('/proc/stat').read_text());time.sleep(1);after=cpu(Path('/proc/stat').read_text())
     delta=after[0]-before[0]
@@ -49,10 +50,10 @@ def collect(computer):
         left,right=line.split(' - ',1);fields=left.split();fstype=right.split()[0]
         if fstype not in ('xfs','ext4','ext3','ext2','btrfs') or len(volumes)>=128:continue
         mount=fields[4].replace('\\040',' ').replace('\\011','\t').replace('\\134','\\')
-        if mount in seen:continue
-        seen.add(mount)
+        if fields[2] in seen or not os.path.isdir(mount):continue
+        seen.add(fields[2])
         try:
-            stat=os.statvfs(mount);total=stat.f_blocks*stat.f_frsize;free=stat.f_bavail*stat.f_frsize
+            stat=os.statvfs(mount);total=stat.f_blocks*stat.f_frsize;free=max(0,min(total,stat.f_bavail*stat.f_frsize))
             volumes.append({'name':mount,'format':fstype,'total_gb':round(total/1024.0**3,2),'free_gb':round(free/1024.0**3,2)})
         except OSError:continue
     return {'schema':1,'platform':'linux','computer':computer.upper(),'status':'ok',

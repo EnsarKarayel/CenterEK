@@ -87,7 +87,7 @@ def save_esxi(root, entries, protector=service_secrets.protect, probe=connectors
     return results
 
 
-def endpoint_package(root, assets, computer, url):
+def endpoint_package(root, assets, computer, url, platform='windows'):
     root, assets = Path(root).resolve(), Path(assets).resolve()
     parsed = urlsplit(url)
     if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('','/') or parsed.query or parsed.fragment:
@@ -101,7 +101,9 @@ def endpoint_package(root, assets, computer, url):
     if not certificate.is_absolute(): certificate = root/certificate
     ca = certificate.parent/'panel-ca.pem'
     if not ca.is_file(): raise ValueError('Office panel CA was not found')
-    for name in AGENT_FILES:
+    if platform not in ('windows','linux'): raise ValueError('Unsupported endpoint platform')
+    files = AGENT_FILES if platform=='windows' else ('linux_collector.py','install_linux_agent.py')
+    for name in files:
         if not (assets/name).is_file(): raise ValueError('Missing agent component: '+name)
     folder = assets/'packages'/computer
     if folder.exists(): raise ValueError('Existing package preserved')
@@ -114,7 +116,8 @@ def endpoint_package(root, assets, computer, url):
         folder.mkdir(parents=True);restrict(folder,directory=True)
         record = registry.register(computer,'endpoint')
         record['url'] = url.rstrip('/')
-        for name in AGENT_FILES: shutil.copy2(assets/name,folder/name)
+        record['platform'] = platform
+        for name in files: shutil.copy2(assets/name,folder/name)
         shutil.copy2(ca,folder/'panel-ca.pem')
         output=folder/'enrollment.local.json'
         with output.open('x',encoding='utf-8') as destination:
