@@ -52,3 +52,12 @@ vm.runInContext("state.data.devices.push({id:'srv',name:'Capacity Server',kind:'
 const serverWidget=dashboard.children[1].children.find(c=>c.dataset.widget==='servers');assert.ok(serverWidget.textContent.includes('120 GB'));assert.ok(serverWidget.textContent.includes('aa:bb:cc:dd:ee:ff'));assert.ok(serverWidget.textContent.includes('400 / 1.000 GB'));
 vm.runInContext("state.data.devices.at(-1).metrics.stale=true",context);events.get('centerek:status').at(-1)();assert.ok(!serverWidget.textContent.includes('120 GB'));assert.ok(serverWidget.textContent.includes('Kaynak bekleniyor'));
 console.log('Server RAM free, datastore, NIC MAC and stale suppression passed.');
+
+const adInventory=new Element('div');adInventory.id='ad-computer-inventory';
+vm.runInContext("state.sessions.inventory=Array.from({length:166},(_,n)=>({computer:'PC'+n,fqdn:'pc'+n+'.example.local',ips:['192.0.2.'+(n+1)],users:n===0?[{domain:'EXAMPLE',username:'alice'}]:[],in_ad:true,ad_enabled:true,report_status:n===0?'fresh':'missing',address_source:n===0?'Yerel ağ kartları':'DNS kaydı'}));renderComputerInventory(document.getElementById('ad-computer-inventory'))",context);
+assert.equal(adInventory.children[0].children[1].children.length,166);
+assert.ok(adInventory.textContent.includes('alice'));assert.ok(adInventory.textContent.includes('Ajan raporu bekleniyor'));
+vm.runInContext("renderComputerInventory(document.getElementById('ad-computer-inventory'),'pc165')",context);
+assert.equal(adInventory.children[0].children[1].children.length,1);
+assert.ok(!adInventory.textContent.includes('alice'));
+console.log('All AD computers remain visible without agents; name/IP/user search passed.');

@@ -41,9 +41,12 @@ def endpoint_report(data, computer):
         raise ValueError('Kayıt sayısı sınırı')
     result = {'schema': 1, 'computer': computer, 'collected_at': data['collected_at'],
               'status': data['status'], 'ips': [str(ipaddress.ip_address(ip)) for ip in ips],
-              'sessions': [], 'source': 'Kimliği doğrulanmış Windows ajanı',
+              'sessions': [], 'source': 'Kimliği doğrulanmış uç ajan',
               'address_source': data.get('address_source') if data.get('address_source') in ('Yerel ağ kartları', 'DNS çözümlemesi') else 'Bilinmiyor', 'resources': {}, 'interfaces': [],
               'error': 'Uç bilgisayar ölçüm hatası' if data['status'] == 'error' else None}
+    platform=data.get('platform','unknown')
+    if platform not in ('windows','linux','unknown'): raise ValueError('Invalid endpoint platform')
+    result['platform']=platform
     interval=data.get('interval_seconds',60)
     if type(interval) is not int or not 15 <= interval <= 300:
         raise ValueError('Geçersiz ölçüm aralığı')
