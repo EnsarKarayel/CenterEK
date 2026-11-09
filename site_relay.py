@@ -134,7 +134,7 @@ def validate(data, enrollment, scope_values, *, directory_domain=None, directory
             raise ValueError('Invalid office service port')
         cloud_id = 'site-' + enrollment['id'] + '-' + hashlib.sha256(original.encode()).hexdigest()[:16]
         state = item.get('state', {})
-        if state.get('status') not in ('up', 'down', 'unknown'):
+        if state.get('status') not in ('up', 'down', 'unknown', 'suspect'):
             raise ValueError('Invalid office availability state')
         checked = None if state.get('checked') is None else stamp(state['checked'])
         failures = state.get('failures', 0)
@@ -144,7 +144,7 @@ def validate(data, enrollment, scope_values, *, directory_domain=None, directory
                'host': str(ipaddress.ip_address(item['host'])), 'kind': text(item.get('kind'), 80) or 'Device',
                'method': item['method'], 'port': port, 'site_id': enrollment['id'],
                'site': enrollment['computer'], 'depends_on': [],
-               'status': state['status'], 'checked': checked, 'failures': failures,
+               'status': 'unknown' if state['status'] == 'suspect' else state['status'], 'checked': checked, 'failures': failures,
                'latency': number(state.get('latency'), 60000),
                'error': 'Office availability check failed' if state['status'] == 'down' else None,
                'availability_24h': number(item.get('availability_24h'), 100),
