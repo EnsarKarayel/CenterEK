@@ -25,6 +25,7 @@ import device_settings
 import collector_settings
 import network_settings
 import os
+import site_relay
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parent
@@ -148,7 +149,7 @@ class Store:
     def inventory(self, config):
         rows, sources = [], []
         with self.lock:
-            for device in config['devices']:
+            for device in list(config['devices']) + [dict(d, collector={'type': d.get('collector_type')}) for d in site_relay.load_devices(getattr(self, 'remote_root', None))]:
                 if device.get('collector', {}).get('type') != 'fortigate':
                     continue
                 metric = self.db.execute('SELECT * FROM metrics WHERE device=?', (device['id'],)).fetchone()
@@ -176,6 +177,11 @@ class Store:
                 sources.append({'name': 'Otomatik ağ keşfi', 'status': 'ok',
                                 'checked': max((c['checked'] or 0 for c in discovered)),
                                 'stale': all(c['stale'] for c in discovered), 'limit': 1024, 'errors': []})
+            for device in site_relay.load_devices(getattr(self, 'remote_root', None)):
+                rows.append({'hostname': device['name'], 'ip': device['host'], 'mac': None,
+                    'type': device['kind'], 'source': 'Office relay / availability',
+                    'checked': device['checked'], 'stale': device['stale'],
+                    'online': None if device['stale'] else device['status'] == 'up'})
         imported = directory.load(ROOT / 'data' / 'directory-inventory.json')
         rows.extend(imported.pop('clients', []))
         return {'clients': rows, 'sources': sources, 'directory': imported}
@@ -215,6 +221,9 @@ class Store:
                 row['sample_count_24h'] = counts[0]
                 devices.append(row)
             incidents = [dict(r) for r in self.db.execute('SELECT * FROM incidents ORDER BY id DESC LIMIT 100')]
+            incidents.extend(site_relay.load_incidents(getattr(self, 'remote_root', None)))
+            incidents = sorted(incidents, key=lambda row: row['started'], reverse=True)[:100]
+            devices.extend(site_relay.load_devices(getattr(self, 'remote_root', None)))
             return {'devices': devices, 'incidents': incidents, 'alerts': insights.alerts(devices),
                     'now': time.time(), 'interval': config['interval'], 'version': '0.6.1-preview',
                     'runtime': {'started': STARTED_AT, 'uptime_seconds': round(time.time()-STARTED_AT),
@@ -268,19 +277,24 @@ def handler(store, config, auth, registry=None):
                 return ''
 
         def do_POST(self):
-            if self.path in ('/api/agent/endpoint', '/api/agent/directory'):
+            if self.path in ('/api/agent/endpoint', '/api/agent/directory', '/api/agent/site'):
                 if not isinstance(self.connection, ssl.SSLSocket):
                     self.respond(403, b'{"error":"HTTPS required"}')
                     return
+                header = self.headers.get('Authorization', '')
+                token = header[7:] if header.startswith('Bearer ') else ''
+                kind = self.path.rsplit('/', 1)[-1]
+                if not registry.authenticated(token, kind):
+                    self.close_connection = True
+                    self.respond(401, b'{}')
+                    return
                 try:
                     length = int(self.headers.get('Content-Length', 0))
-                    maximum = 256 * 1024 if self.path.endswith('/endpoint') else 5 * 1024 * 1024
+                    maximum = site_relay.MAX_BYTES if self.path.endswith('/site') else 256 * 1024 if self.path.endswith('/endpoint') else 5 * 1024 * 1024
                     if not 1 <= length <= maximum or self.headers.get_content_type() != 'application/json':
                         raise ValueError()
                     payload = json.loads(self.rfile.read(length).decode('utf-8-sig'), parse_constant=lambda x: (_ for _ in ()).throw(ValueError()))
-                    header = self.headers.get('Authorization', '')
-                    token = header[7:] if header.startswith('Bearer ') else ''
-                    status = registry.ingest(token, payload, self.path.rsplit('/', 1)[-1])
+                    status = registry.ingest(token, payload, kind)
                     self.respond(status, b'{}')
                 except (ValueError, TypeError):
                     self.respond(400, b'{}')

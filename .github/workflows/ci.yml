@@ -26,6 +26,7 @@ jobs:
           az bicep build --file infra/azure/main.bicep --outfile /tmp/centerek-azure.json
           az bicep build --file infra/azure/identity.bicep --outfile /tmp/centerek-identity.json
           az bicep build --file infra/azure/browser-access.bicep --outfile /tmp/centerek-browser-access.json
+          az bicep build --file infra/azure/telemetry-ingress.bicep --outfile /tmp/centerek-telemetry.json
 
   verify:
     name: Verify Windows / Python ${{ matrix.python }}
