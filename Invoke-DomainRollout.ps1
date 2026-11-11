@@ -1,5 +1,6 @@
 param(
     [string[]]$ComputerName,
+    [string]$RetryReport,
     [switch]$Apply,
     [ValidateRange(1,8)][int]$Throttle=4,
     [ValidateRange(30,240)][int]$TimeoutSeconds=120,
@@ -8,6 +9,12 @@ param(
 # Run locally on the distribution server as an authorized domain administrator.
 # No passwords, execution-policy bypass, firewall changes, or endpoint reboot.
 $ErrorActionPreference='Stop'
+function Get-NetworkRetryNames([object[]]$Rows){
+    @($Rows|Where-Object {$_.Status -in @('REMOTE_ACCESS_FAILED','REMOTE_ACCESS_TIMEOUT_OR_JOB_FAILED')}|ForEach-Object {
+        if($_.Computer -cnotmatch '^[A-Za-z0-9][A-Za-z0-9-]{0,14}$'){throw 'Invalid retry computer name'}
+        $_.Computer.ToUpperInvariant()
+    }|Sort-Object -Unique)
+}
 Import-Module ActiveDirectory
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
 if(-not(New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Administrator required'}
@@ -21,12 +28,27 @@ $origin='\\'+$server+'\'+$ShareName
 $startup=$origin+'\Start-DomainEndpoint.ps1'
 if(-not(Test-Path -LiteralPath (Join-Path $expected 'Start-DomainEndpoint.ps1'))){throw 'Startup script missing'}
 $all=@(Get-ADComputer -Filter * -Properties Enabled,OperatingSystem,DNSHostName)
+if($RetryReport -and $ComputerName){throw 'Choose either explicit computers or a retry report'}
+$retryNames=@()
+if($RetryReport){
+    $report=Get-Item -LiteralPath $RetryReport
+    if($report.Length -gt 10MB -or ($report.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Unsafe retry report'}
+    $retryRows=@(Import-Csv -LiteralPath $RetryReport)
+    if(-not $retryRows.Count -or $retryRows.Count -gt 20000 -or 'Computer' -notin $retryRows[0].PSObject.Properties.Name -or 'Status' -notin $retryRows[0].PSObject.Properties.Name){throw 'Invalid rollout report'}
+    $retryNames=@(Get-NetworkRetryNames $retryRows)
+    if(-not $retryNames.Count){Write-Output 'NO_NETWORK_FAILURES_TO_RETRY';return}
+}
 if($ComputerName){
     foreach($name in $ComputerName){if($name -cnotmatch '^[A-Za-z0-9][A-Za-z0-9-]{0,14}$'){throw 'Invalid requested computer name'}}
     $all=@($all|Where-Object {$ComputerName -icontains $_.Name})
     if($all.Count -ne @($ComputerName|Sort-Object -Unique).Count){throw 'Requested computer absent or ambiguous in AD'}
 }
 $targets=@($all|Where-Object {$_.Enabled -and $_.OperatingSystem -cmatch '^Windows (8|10|11)(\b|\.)' -and $_.Name -cmatch '^[A-Za-z0-9][A-Za-z0-9-]{0,14}$' -and $_.DNSHostName -ieq ($_.Name+'.'+$domain.DNSRoot)}|Sort-Object Name)
+if($RetryReport){
+    $targets=@($targets|Where-Object {$retryNames -icontains $_.Name})
+    Write-Output ('RETRY_NETWORK_TARGETS='+$targets.Count)
+    foreach($name in $retryNames){if($name -notin @($targets.Name)){Write-Output ($name+' SKIPPED_NOT_CURRENT_ELIGIBLE_AD_WORKSTATION')}}
+}
 if($ComputerName -and $targets.Count -ne $all.Count){throw 'Requested target is not an enabled supported domain workstation'}
 if(-not $Apply){
     $targets|Select-Object Name,DNSHostName,@{Name='Package';Expression={Test-Path -LiteralPath (Join-Path $expected ('packages\'+$_.Name+'\enrollment.local.json'))}}
@@ -155,9 +177,23 @@ $worker={
     $stage='connect'
     try{
         $service=New-Object -ComObject Schedule.Service
-        # Match the short AD name already used by schtasks /S. A stale FQDN
-        # record must not silently select a different deployment target.
-        $service.Connect($Computer)
+        # A short name can fail even when AD's FQDN exists. Try only the two
+        # names validated against this AD account; never connect by IP or
+        # change the host resolver/hosts file to force credential delivery.
+        $connectionErrors=@()
+        $connected=$false
+        foreach($targetName in @($Fqdn,$Computer)){
+            try{$service.Connect($targetName);$connected=$true;break}
+            catch{
+                $connectError=$_.Exception
+                while($connectError.InnerException){$connectError=$connectError.InnerException}
+                $hex=$connectError.HResult.ToString('X8')
+                $connectionErrors+=($targetName+'=0x'+$hex)
+                # Do not retry access-denied/policy failures under another name.
+                if($hex -notin @('80070035','800706BA','80070043')){throw}
+            }
+        }
+        if(-not $connected){throw $connectError}
         $stage='open_task_folder'
         $folder=$service.GetFolder('\')
         $stage='query_existing_agent'
@@ -273,6 +309,7 @@ $worker={
         while($errorObject.InnerException){$errorObject=$errorObject.InnerException}
         $result.Status=if($stage -eq 'connect'){'REMOTE_ACCESS_FAILED'}else{'REMOTE_OPERATION_FAILED'}
         $result.ErrorType=$stage+' '+$errorObject.GetType().FullName+' HRESULT=0x'+$errorObject.HResult.ToString('X8')
+        if($stage -eq 'connect' -and $connectionErrors.Count){$result.ErrorType+=' targets='+($connectionErrors -join ';')}
     }
     finally{
         if($created -and $folder){

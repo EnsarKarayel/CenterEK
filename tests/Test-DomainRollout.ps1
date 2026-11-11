@@ -10,8 +10,9 @@ $worker=[scriptblock]::Create($text.Substring(1,$text.Length-2))
 # access AD, change permissions or run the embedded endpoint command.
 function New-Object {param([string]$ComObject) if($ComObject -ne 'Schedule.Service'){throw 'Unexpected COM class'};return $script:service}
 function Start-Sleep {param([int]$Seconds)}
-foreach($scenario in @('existing','disabled','blocked','registerblocked','success','finishedhandle','failed','timeout')){
+foreach($scenario in @('existing','disabled','blocked','registerblocked','success','fqdnonly','shortonly','bothnamesbad','finishedhandle','failed','timeout')){
     $script:scenario=$scenario;$script:registered=0;$script:deleted=0
+    $script:connections=@()
     $script:task=[pscustomobject]@{State=3;LastTaskResult=0}
     $script:running=[pscustomobject]@{State=4}
     $script:running|Add-Member ScriptMethod Refresh {
@@ -25,7 +26,7 @@ foreach($scenario in @('existing','disabled','blocked','registerblocked','succes
     $script:folder|Add-Member ScriptMethod GetTask {
         param($name)
         if($name -eq 'CenterEK-Endpoint-System'){
-            if($script:scenario -in @('existing','disabled') -or ($script:scenario -in @('success','finishedhandle') -and $script:registered)){
+            if($script:scenario -in @('existing','disabled') -or ($script:scenario -in @('success','fqdnonly','shortonly','finishedhandle') -and $script:registered)){
                 return [pscustomobject]@{Enabled=($script:scenario -ne 'disabled')}
             }
             throw [IO.FileNotFoundException]::new('Expected missing task')
@@ -43,7 +44,12 @@ foreach($scenario in @('existing','disabled','blocked','registerblocked','succes
     }
     $script:folder|Add-Member ScriptMethod DeleteTask {param($name,$flags) $script:deleted++}
     $script:service=[pscustomobject]@{}
-    $script:service|Add-Member ScriptMethod Connect {param($fqdn) if($script:scenario -eq 'blocked'){throw [UnauthorizedAccessException]::new('Blocked')}}
+    $script:service|Add-Member ScriptMethod Connect {
+        param($name)
+        $script:connections+=$name
+        if($script:scenario -eq 'blocked'){throw [UnauthorizedAccessException]::new('Blocked')}
+        if($script:scenario -eq 'bothnamesbad' -or ($script:scenario -eq 'shortonly' -and $name.Contains('.')) -or ($script:scenario -eq 'fqdnonly' -and -not $name.Contains('.'))){throw [Runtime.InteropServices.COMException]::new('Network name unavailable',-2147024843)}
+    }
     $script:service|Add-Member ScriptMethod GetFolder {param($path) return $script:folder}
     $script:service|Add-Member ScriptMethod NewTask {
         param($flags)
@@ -54,15 +60,35 @@ foreach($scenario in @('existing','disabled','blocked','registerblocked','succes
     }
     $timeout=if($scenario -eq 'timeout'){-1}else{30}
     $result=& $worker 'PC-07' 'pc-07.volonet.local' '\\VOLO.volonet.local\CenterEKDeploy$\Start-DomainEndpoint.ps1' '\\VOLO.volonet.local\CenterEKDeployLogs$\run\PC-07\result.json' $timeout
-    $expected=@{existing='EXISTING_TASK';disabled='EXISTING_TASK_DISABLED';blocked='REMOTE_ACCESS_FAILED';registerblocked='REMOTE_OPERATION_FAILED';success='TASK_REGISTERED_VERIFY_TELEMETRY';finishedhandle='TASK_REGISTERED_VERIFY_TELEMETRY';failed='INSTALL_FAILED';timeout='REMOTE_TASK_TIMEOUT'}[$scenario]
+    $expected=@{existing='EXISTING_TASK';disabled='EXISTING_TASK_DISABLED';blocked='REMOTE_ACCESS_FAILED';registerblocked='REMOTE_OPERATION_FAILED';success='TASK_REGISTERED_VERIFY_TELEMETRY';fqdnonly='TASK_REGISTERED_VERIFY_TELEMETRY';shortonly='TASK_REGISTERED_VERIFY_TELEMETRY';bothnamesbad='REMOTE_ACCESS_FAILED';finishedhandle='TASK_REGISTERED_VERIFY_TELEMETRY';failed='INSTALL_FAILED';timeout='REMOTE_TASK_TIMEOUT'}[$scenario]
     if($result.Status -ne $expected){throw ('Unexpected '+$scenario+' result: '+($result|ConvertTo-Json -Compress))}
-    if($scenario -in @('existing','disabled','blocked') -and $script:registered){throw 'Existing/blocked machine modified'}
-    if($scenario -in @('success','finishedhandle','failed') -and $script:deleted -ne 1){throw 'Completed bootstrap not cleaned up'}
+    if($scenario -in @('existing','disabled','blocked','bothnamesbad') -and $script:registered){throw 'Existing/blocked machine modified'}
+    if($scenario -in @('success','fqdnonly','shortonly','finishedhandle','failed') -and $script:deleted -ne 1){throw 'Completed bootstrap not cleaned up'}
+    if($scenario -eq 'fqdnonly' -and ($script:connections.Count -ne 1 -or $script:connections[0] -ne 'pc-07.volonet.local')){throw 'AD FQDN was not tried first'}
+    if($scenario -eq 'shortonly' -and ($script:connections.Count -ne 2 -or $script:connections[1] -ne 'PC-07')){throw 'Network failure did not try AD short name'}
+    if($scenario -eq 'blocked' -and $script:connections.Count -ne 1){throw 'Access denied incorrectly retried under another name'}
+    if($scenario -eq 'bothnamesbad' -and ($script:connections.Count -ne 2 -or $result.ErrorType -notmatch 'pc-07.volonet.local=0x80070035;PC-07=0x80070035')){throw 'Both network failures not reported'}
     if($scenario -eq 'timeout' -and $script:deleted){throw 'Running task was deleted'}
     if($scenario -eq 'registerblocked' -and $result.ErrorType -notmatch '^register_bootstrap .*HRESULT=0x80070005$'){throw 'Registration failure stage/code lost'}
     if($scenario -eq 'success'){$diagnosticArguments=$script:action.Arguments}
     Write-Output ('PASS '+$scenario)
 }
+$retry=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-NetworkRetryNames'},$true)
+. ([scriptblock]::Create($retry.Extent.Text))
+$rows=@(
+    [pscustomobject]@{Computer='PC-08';Status='REMOTE_ACCESS_FAILED'},
+    [pscustomobject]@{Computer='pc-08';Status='REMOTE_ACCESS_FAILED'},
+    [pscustomobject]@{Computer='DESKTOP-7I1O5U6';Status='REMOTE_ACCESS_FAILED'},
+    [pscustomobject]@{Computer='PC-102';Status='TASK_REGISTERED_VERIFY_TELEMETRY'},
+    [pscustomobject]@{Computer='PC-07';Status='EXISTING_TASK'},
+    [pscustomobject]@{Computer='PC-54';Status='INSTALL_FAILED'}
+)
+$names=@(Get-NetworkRetryNames $rows)
+if($names.Count -ne 2 -or 'PC-08' -notin $names -or 'DESKTOP-7I1O5U6' -notin $names){throw 'Retry scope includes successful/non-network targets or lost an ASCII I name'}
+$rejected=$false
+try{Get-NetworkRetryNames @([pscustomobject]@{Computer='..\PC-08';Status='REMOTE_ACCESS_FAILED'})}catch{$rejected=$true}
+if(-not $rejected){throw 'Unsafe retry target was accepted'}
+Write-Output 'PASS network-only retry scope, deduplication and target validation'
 # Exercise the actual powershell.exe command-line quoting and diagnostic writer
 # against a local failure fixture, without any remote host or enrollment key.
 Remove-Item Function:\New-Object
