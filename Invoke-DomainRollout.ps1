@@ -171,21 +171,58 @@ $worker={
         $command=@'
 & {
     $ErrorActionPreference='Stop'
-    $r=[ordered]@{computer=$env:COMPUTERNAME;collected_at=[DateTime]::UtcNow.ToString('o');stage='preflight';status='failed';identity=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;language=[string]$ExecutionContext.SessionState.LanguageMode;policy=@();script_access=$false;package_access=$false;error_id='';error_type='';error_line=0;task_present=$false}
+    $r=[ordered]@{computer=$env:COMPUTERNAME;collected_at=[DateTime]::UtcNow.ToString('o');stage='preflight';status='failed';identity=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;language=[string]$ExecutionContext.SessionState.LanguageMode;policy=@();script_access=$false;package_access=$false;error_id='';error_type='';error_line=0;security_message='';origin=@();task_present=$false}
     $code=1
+    $stagePath=$null
+    $names=@('Collect-EndpointSessions.ps1','Send-Report.ps1','Setup-Agent.ps1','Install-SystemTask.ps1','Run-SystemTask.ps1','Install-EndpointPilot.ps1','enrollment.local.json','panel-ca.pem')
     try {
         $r.policy=@(Get-ExecutionPolicy -List|ForEach-Object {@{scope=[string]$_.Scope;policy=[string]$_.ExecutionPolicy}})
         $r.script_access=Test-Path -LiteralPath '__STARTUP__'
         $r.package_access=Test-Path -LiteralPath ('__PACKAGES__\'+$env:COMPUTERNAME+'\enrollment.local.json')
         if(-not $r.script_access -or -not $r.package_access){throw 'Deployment source unavailable'}
+        $r.stage='staging'
+        if((Get-Item -Force -LiteralPath $env:ProgramData).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Unsafe ProgramData'}
+        $stagePath=Join-Path $env:ProgramData ('CenterEK-Stage-'+[Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $stagePath|Out-Null
+        $acl=New-Object Security.AccessControl.DirectorySecurity
+        $acl.SetAccessRuleProtection($true,$false)
+        $acl.SetOwner((New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')))
+        foreach($sid in @('S-1-5-18','S-1-5-32-544')){
+            $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier($sid)),'FullControl','ContainerInherit,ObjectInherit','None','Allow')))
+        }
+        Set-Acl -LiteralPath $stagePath -AclObject $acl
+        $package='__PACKAGES__\'+$env:COMPUTERNAME
+        foreach($name in $names){
+            $from=Join-Path $package $name
+            if((Get-Item -Force -LiteralPath $from).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Unsafe source component'}
+            Copy-Item -LiteralPath $from -Destination (Join-Path $stagePath $name)
+            # Copy-Item retains origin metadata. Never unblock or rewrite source
+            # content merely to get past RemoteSigned.
+            if($name.EndsWith('.ps1')){
+                $zone=Get-Content -LiteralPath (Join-Path $stagePath $name) -Stream Zone.Identifier -ErrorAction SilentlyContinue
+                $id=($zone|Where-Object {$_ -cmatch '^ZoneId=[0-4]$'}|Select-Object -First 1)
+                $r.origin+=@{file=$name;zone=[string]$id}
+            }
+        }
         $r.stage='installer'
-        & '__STARTUP__' *> $null
+        & (Join-Path $stagePath 'Install-EndpointPilot.ps1') *> $null
         $r.task_present=[bool](Get-ScheduledTask -TaskName 'CenterEK-Endpoint-System' -ErrorAction SilentlyContinue)
         if($r.task_present){$r.status='task_registered';$code=0}else{throw 'Agent task absent after installer'}
     } catch {
         $r.error_id=[string]$_.FullyQualifiedErrorId
         $r.error_type=$_.Exception.GetType().FullName
         $r.error_line=$_.InvocationInfo.ScriptLineNumber
+        if($_.Exception -is [Management.Automation.PSSecurityException]){
+            $message=[string]$_.Exception.Message
+            $r.security_message=$message.Substring(0,[Math]::Min(600,$message.Length))
+        }
+    } finally {
+        # Only known files in this newly generated protected directory; no
+        # recursive deletion of endpoint/user directories.
+        if($stagePath){
+            foreach($name in $names){Remove-Item -LiteralPath (Join-Path $stagePath $name) -Force -ErrorAction SilentlyContinue}
+            try{[IO.Directory]::Delete($stagePath)}catch{}
+        }
     }
     try {$r|ConvertTo-Json -Depth 5|Set-Content -LiteralPath '__RECEIPT__' -Encoding UTF8} catch {exit 2}
     exit $code
@@ -214,10 +251,17 @@ $worker={
         $limit=[DateTime]::UtcNow.AddSeconds($Timeout)
         do{
             Start-Sleep -Seconds 2
-            $running.Refresh()
+            $runningState=3
+            try{$running.Refresh();$runningState=$running.State}
+            catch{
+                $ended=$_.Exception
+                while($ended.InnerException){$ended=$ended.InnerException}
+                if($ended.HResult.ToString('X8') -ne '8004130B'){throw}
+                # The instance has completed; read registered task result below.
+            }
             $task=$folder.GetTask($temporary)
-        }while($running.State -in @(2,4) -and [DateTime]::UtcNow -lt $limit)
-        if($running.State -in @(2,4)){$result.Status='REMOTE_TASK_TIMEOUT'}
+        }while($runningState -in @(2,4) -and [DateTime]::UtcNow -lt $limit)
+        if($runningState -in @(2,4)){$result.Status='REMOTE_TASK_TIMEOUT'}
         else{
             $result.TaskResult=[string]$task.LastTaskResult
             $stage='verify_agent'
@@ -277,7 +321,7 @@ for($index=0;$index -lt $targets.Count;$index+=$Throttle){
             if((Test-Path -LiteralPath $local) -and (Get-Item -LiteralPath $local).Length -le 16384){
                 try{
                     $info=[CenterEKReceiptReader]::Read($local)|ConvertFrom-Json
-                    $info|Select-Object computer,stage,status,script_access,package_access,error_id,error_type,error_line,policy|ConvertTo-Json -Depth 5
+                    $info|Select-Object computer,stage,status,script_access,package_access,error_id,error_type,error_line,security_message,origin,policy|ConvertTo-Json -Depth 5
                 }catch{Write-Output 'DIAGNOSTIC_INVALID'}
             }
         }

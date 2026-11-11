@@ -10,11 +10,14 @@ $worker=[scriptblock]::Create($text.Substring(1,$text.Length-2))
 # access AD, change permissions or run the embedded endpoint command.
 function New-Object {param([string]$ComObject) if($ComObject -ne 'Schedule.Service'){throw 'Unexpected COM class'};return $script:service}
 function Start-Sleep {param([int]$Seconds)}
-foreach($scenario in @('existing','disabled','blocked','registerblocked','success','failed','timeout')){
+foreach($scenario in @('existing','disabled','blocked','registerblocked','success','finishedhandle','failed','timeout')){
     $script:scenario=$scenario;$script:registered=0;$script:deleted=0
     $script:task=[pscustomobject]@{State=3;LastTaskResult=0}
     $script:running=[pscustomobject]@{State=4}
-    $script:running|Add-Member ScriptMethod Refresh {if($script:scenario -ne 'timeout'){$this.State=3}}
+    $script:running|Add-Member ScriptMethod Refresh {
+        if($script:scenario -eq 'finishedhandle'){throw [Runtime.InteropServices.COMException]::new('No running instance',-2147216629)}
+        if($script:scenario -ne 'timeout'){$this.State=3}
+    }
     if($scenario -eq 'failed'){$script:task.LastTaskResult=1}
     if($scenario -eq 'timeout'){$script:running.State=4;$script:task.State=4}
     $script:task|Add-Member ScriptMethod Run {param($nothing) return $script:running}
@@ -22,7 +25,7 @@ foreach($scenario in @('existing','disabled','blocked','registerblocked','succes
     $script:folder|Add-Member ScriptMethod GetTask {
         param($name)
         if($name -eq 'CenterEK-Endpoint-System'){
-            if($script:scenario -in @('existing','disabled') -or ($script:scenario -eq 'success' -and $script:registered)){
+            if($script:scenario -in @('existing','disabled') -or ($script:scenario -in @('success','finishedhandle') -and $script:registered)){
                 return [pscustomobject]@{Enabled=($script:scenario -ne 'disabled')}
             }
             throw [IO.FileNotFoundException]::new('Expected missing task')
@@ -51,10 +54,10 @@ foreach($scenario in @('existing','disabled','blocked','registerblocked','succes
     }
     $timeout=if($scenario -eq 'timeout'){-1}else{30}
     $result=& $worker 'PC-07' 'pc-07.volonet.local' '\\VOLO.volonet.local\CenterEKDeploy$\Start-DomainEndpoint.ps1' '\\VOLO.volonet.local\CenterEKDeployLogs$\run\PC-07\result.json' $timeout
-    $expected=@{existing='EXISTING_TASK';disabled='EXISTING_TASK_DISABLED';blocked='REMOTE_ACCESS_FAILED';registerblocked='REMOTE_OPERATION_FAILED';success='TASK_REGISTERED_VERIFY_TELEMETRY';failed='INSTALL_FAILED';timeout='REMOTE_TASK_TIMEOUT'}[$scenario]
+    $expected=@{existing='EXISTING_TASK';disabled='EXISTING_TASK_DISABLED';blocked='REMOTE_ACCESS_FAILED';registerblocked='REMOTE_OPERATION_FAILED';success='TASK_REGISTERED_VERIFY_TELEMETRY';finishedhandle='TASK_REGISTERED_VERIFY_TELEMETRY';failed='INSTALL_FAILED';timeout='REMOTE_TASK_TIMEOUT'}[$scenario]
     if($result.Status -ne $expected){throw ('Unexpected '+$scenario+' result: '+($result|ConvertTo-Json -Compress))}
     if($scenario -in @('existing','disabled','blocked') -and $script:registered){throw 'Existing/blocked machine modified'}
-    if($scenario -in @('success','failed') -and $script:deleted -ne 1){throw 'Completed bootstrap not cleaned up'}
+    if($scenario -in @('success','finishedhandle','failed') -and $script:deleted -ne 1){throw 'Completed bootstrap not cleaned up'}
     if($scenario -eq 'timeout' -and $script:deleted){throw 'Running task was deleted'}
     if($scenario -eq 'registerblocked' -and $result.ErrorType -notmatch '^register_bootstrap .*HRESULT=0x80070005$'){throw 'Registration failure stage/code lost'}
     if($scenario -eq 'success'){$diagnosticArguments=$script:action.Arguments}
@@ -69,8 +72,19 @@ New-Item -ItemType Directory -Path (Join-Path $fixture ('packages\'+$env:COMPUTE
 $source=Join-Path $fixture 'Start-DomainEndpoint.ps1'
 Set-Content -LiteralPath $source -Value "throw 'EXPECTED_TEST_FAILURE'" -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $fixture ('packages\'+$env:COMPUTERNAME+'\enrollment.local.json')) -Value '{}' -Encoding UTF8
+$packageFixture=Join-Path $fixture ('packages\'+$env:COMPUTERNAME)
+foreach($file in @('Collect-EndpointSessions.ps1','Send-Report.ps1','Setup-Agent.ps1','Install-SystemTask.ps1','Run-SystemTask.ps1','panel-ca.pem')){
+    Set-Content -LiteralPath (Join-Path $packageFixture $file) -Value '# local test fixture' -Encoding UTF8
+}
+Set-Content -LiteralPath (Join-Path $packageFixture 'Install-EndpointPilot.ps1') -Value "throw 'EXPECTED_TEST_FAILURE'" -Encoding UTF8
 $receipt=Join-Path $fixture 'result.json'
 $arguments=$diagnosticArguments.Replace('\\VOLO.volonet.local\CenterEKDeploy$',$fixture).Replace('\\VOLO.volonet.local\CenterEKDeployLogs$\run\PC-07\result.json',$receipt)
+$stagingParent=Join-Path $fixture 'stage-parent'
+New-Item -ItemType Directory -Path $stagingParent|Out-Null
+# The desktop test is not elevated/SYSTEM: preserve the same protected-directory
+# structure but substitute only this test user's SID and an owned temp parent.
+$testSid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$arguments=$arguments.Replace('$env:ProgramData',("'"+$stagingParent+"'")).Replace('S-1-5-32-544',$testSid)
 $process=[Diagnostics.Process]::new()
 $process.StartInfo=[Diagnostics.ProcessStartInfo]::new('powershell.exe',$arguments)
 $process.StartInfo.UseShellExecute=$false
@@ -82,7 +96,17 @@ try{
     $record=Get-Content -LiteralPath $receipt -Raw|ConvertFrom-Json
     if($record.stage -ne 'installer' -or $record.error_id -ne 'EXPECTED_TEST_FAILURE' -or -not $record.script_access -or -not $record.package_access){throw 'Diagnostic content incorrect'}
     if(@($record.policy|Where-Object {$_.scope -eq 'Process' -and $_.policy -eq 'RemoteSigned'}).Count -ne 1){throw 'Diagnostic process policy not applied'}
+    if(@(Get-ChildItem -LiteralPath $stagingParent -Force).Count){throw 'Protected staging files were not cleaned up'}
     Write-Output 'PASS native diagnostic process'
+    Set-Content -LiteralPath (Join-Path $packageFixture 'Install-EndpointPilot.ps1') -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+    [void]$process.Start()
+    if(-not $process.WaitForExit(15000)){$process.Kill();throw 'Origin-mark test timed out'}
+    $blocked=Get-Content -LiteralPath $receipt -Raw|ConvertFrom-Json
+    if($blocked.error_type -ne 'System.Management.Automation.PSSecurityException' -or @($blocked.origin|Where-Object {$_.file -eq 'Install-EndpointPilot.ps1' -and $_.zone -eq 'ZoneId=3'}).Count -ne 1){throw 'RemoteSigned/origin mark was bypassed'}
+    if(@(Get-ChildItem -LiteralPath $stagingParent -Force).Count){throw 'Blocked staging files were not cleaned up'}
+    # Restore source marker only in the disposable test fixture.
+    Remove-Item -LiteralPath (Join-Path $packageFixture 'Install-EndpointPilot.ps1') -Stream Zone.Identifier
+    Write-Output 'PASS origin metadata preserved and RemoteSigned block reported'
     $runtime=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Update-PackageRuntime'},$true)
     . ([scriptblock]::Create($runtime.Extent.Text))
     $package=Join-Path $fixture 'runtime'
@@ -112,7 +136,7 @@ try{
     $reader=$ast.Find({param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Add-Type'},$true)
     Add-Type -TypeDefinition $reader.CommandElements[-1].Value
     $read=[CenterEKReceiptReader]::Read($receipt)|ConvertFrom-Json
-    if($read.error_id -ne 'EXPECTED_TEST_FAILURE'){throw 'Receipt handle read failed'}
+    if($read.error_type -ne $blocked.error_type){throw 'Receipt handle read failed'}
     $linked=Join-Path $fixture 'linked'
     New-Item -ItemType Junction -Path $linked -Target $fixture|Out-Null
     $rejected=$false
