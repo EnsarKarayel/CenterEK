@@ -13,7 +13,8 @@ function Start-Sleep {param([int]$Seconds)}
 foreach($scenario in @('existing','disabled','blocked','registerblocked','success','failed','timeout')){
     $script:scenario=$scenario;$script:registered=0;$script:deleted=0
     $script:task=[pscustomobject]@{State=3;LastTaskResult=0}
-    $script:running=[pscustomobject]@{State=3}
+    $script:running=[pscustomobject]@{State=4}
+    $script:running|Add-Member ScriptMethod Refresh {if($script:scenario -ne 'timeout'){$this.State=3}}
     if($scenario -eq 'failed'){$script:task.LastTaskResult=1}
     if($scenario -eq 'timeout'){$script:running.State=4;$script:task.State=4}
     $script:task|Add-Member ScriptMethod Run {param($nothing) return $script:running}
@@ -33,7 +34,7 @@ foreach($scenario in @('existing','disabled','blocked','registerblocked','succes
         if($script:scenario -eq 'registerblocked'){throw [UnauthorizedAccessException]::new('Registration blocked')}
         if($flags -ne 2 -or $user -ne 'SYSTEM' -or $password -or $logon -ne 5){throw 'Unsafe task registration'}
         if($definition.PSObject.Properties.Name -contains 'Triggers'){throw 'Bootstrap must be demand-only'}
-        if($script:action.Arguments -match '(?:^|\s)-ExecutionPolicy|EncodedCommand|\bBypass\b'){throw 'Policy bypass rejected'}
+        if($script:action.Arguments -notmatch '^-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned ' -or $script:action.Arguments -match 'EncodedCommand|\bBypass\b|\bUnrestricted\b|Set-ExecutionPolicy'){throw 'Unexpected process execution policy'}
         if($script:action.Arguments -notmatch 'script_access' -or $script:action.Arguments -notmatch 'package_access'){throw 'Missing diagnostics'}
         $script:registered++;return $script:task
     }
@@ -80,7 +81,34 @@ try{
     if($process.ExitCode -ne 1 -or -not(Test-Path -LiteralPath $receipt)){throw 'Diagnostic invocation did not capture the failure'}
     $record=Get-Content -LiteralPath $receipt -Raw|ConvertFrom-Json
     if($record.stage -ne 'installer' -or $record.error_id -ne 'EXPECTED_TEST_FAILURE' -or -not $record.script_access -or -not $record.package_access){throw 'Diagnostic content incorrect'}
+    if(@($record.policy|Where-Object {$_.scope -eq 'Process' -and $_.policy -eq 'RemoteSigned'}).Count -ne 1){throw 'Diagnostic process policy not applied'}
     Write-Output 'PASS native diagnostic process'
+    $runtime=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Update-PackageRuntime'},$true)
+    . ([scriptblock]::Create($runtime.Extent.Text))
+    $package=Join-Path $fixture 'runtime'
+    New-Item -ItemType Directory -Path $package|Out-Null
+    $repo=Split-Path -Parent $PSScriptRoot
+    foreach($name in @('Install-SystemTask.ps1','Run-SystemTask.ps1')){
+        $text=[IO.File]::ReadAllText((Join-Path $repo $name))
+        if($name -eq 'Install-SystemTask.ps1'){
+            $text=$text.Replace('$arguments=''-NoProfile -ExecutionPolicy RemoteSigned -WindowStyle Hidden -File "''','$arguments=''-NoProfile -WindowStyle Hidden -File "''').Replace('if($ServerExecutable){$arguments+=','if($ServerExecutable){$arguments=$arguments.Replace(''-NoProfile '',''-NoProfile -ExecutionPolicy RemoteSigned '');$arguments+=')
+        }else{
+            $text=$text.Replace('$arguments=@(''-NoProfile'',''-ExecutionPolicy'',''RemoteSigned'',''-File''','$arguments=@(''-NoProfile'',''-File''')
+        }
+        [IO.File]::WriteAllText((Join-Path $package $name),$text)
+    }
+    Update-PackageRuntime $package
+    foreach($name in @('Install-SystemTask.ps1','Run-SystemTask.ps1')){
+        $expected=[IO.File]::ReadAllText((Join-Path $repo $name)).Replace("`r`n","`n")
+        $actual=[IO.File]::ReadAllText((Join-Path $package $name)).Replace("`r`n","`n")
+        if($actual -cne $expected){throw ('Runtime patch mismatch: '+$name)}
+    }
+    Update-PackageRuntime $package
+    Add-Content -LiteralPath (Join-Path $package 'Run-SystemTask.ps1') -Value '# local modification'
+    $rejected=$false
+    try{Update-PackageRuntime $package}catch{$rejected=$true}
+    if(-not $rejected){throw 'Unknown runtime edit was overwritten'}
+    Write-Output 'PASS known runtime upgrade, idempotence and unknown-version preservation'
     $reader=$ast.Find({param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Add-Type'},$true)
     Add-Type -TypeDefinition $reader.CommandElements[-1].Value
     $read=[CenterEKReceiptReader]::Read($receipt)|ConvertFrom-Json

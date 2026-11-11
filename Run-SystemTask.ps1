@@ -19,7 +19,7 @@ if ($Mode -eq 'Server') {
 } else {
     $executable=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $script=if ($Mode -eq 'Directory') {'Send-DirectoryInventory.ps1'} else {'Collect-EndpointSessions.ps1'}
-    $arguments=@('-NoProfile','-File',(Join-Path $root $script),'-AgentConfig',$AgentConfig,'-Watch')
+    $arguments=@('-NoProfile','-ExecutionPolicy','RemoteSigned','-File',(Join-Path $root $script),'-AgentConfig',$AgentConfig,'-Watch')
     if($Mode -eq 'Directory'){$arguments+=@('-OutputFile',(Join-Path $root 'data\directory-inventory.local.json'))}
     else{$arguments+=@('-OutputDirectory',(Join-Path $root 'data\endpoint-sessions'))}
 }
