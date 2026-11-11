@@ -66,6 +66,9 @@ jobs:
       - name: Parse all PowerShell scripts without executing them
         shell: powershell
         run: ./scripts/ci/Test-PowerShell.ps1
+      - name: Exercise central rollout with a fake scheduler and local diagnostic fixture
+        shell: powershell
+        run: ./tests/Test-DomainRollout.ps1
       - name: Summary
         if: always()
         shell: pwsh

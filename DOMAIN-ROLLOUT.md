@@ -48,4 +48,20 @@ Keep existing security filtering/policy standards. Allow computer policy process
 
 Expected task: CenterEK-Endpoint-System running as SYSTEM. Local installation: C:\ProgramData\CenterEK-Agent (SYSTEM/admin only). Logs: data\logs\endpoint.log. Within a few measurement/relay cycles, Azure shows fresh timestamp, CPU, memory, disk capacity/free space and reported Windows sessions. An active Windows session does not prove physical user presence or an unlocked screen.
 
+## Central on-demand installation and diagnosis
+
+Run Invoke-DomainRollout.ps1 locally on the domain distribution server as an authorized domain administrator. It uses the existing remote Task Scheduler RPC service, not WinRM/WMI or remote user passwords. No firewall or execution-policy bypass is added. Default mode only lists targets/packages.
+
+```cmd
+powershell.exe -NoProfile -File "C:\CenterEK-AD\CenterEK-Domain-Rollout\Invoke-DomainRollout.ps1" -ComputerName PC-07 -Apply
+```
+
+First verify that the pilot actually reports to Azure. Then omit -ComputerName to process all eligible domain workstations, four at a time (up to eight with -Throttle). The command window must remain open until the distribution run completes; installed agents themselves require no open window. No endpoint reboot is performed. Existing agent tasks, including disabled tasks, are preserved and reported; disabled tasks need review rather than automatic enabling. Missing packages do not create new credentials. Servers/DCs/disabled AD accounts are excluded. Offline/blocked targets are reported and may install later through GPO.
+
+Each on-demand bootstrap task has a unique name, no startup/scheduled trigger, a three-minute execution limit, and is removed after completion. Timed-out/running tasks are retained and named in the report for investigation. Existing manually created deployment tasks are not replaced or deleted.
+
+The first apply run creates a separate encrypted CenterEKDeployLogs$ share rooted at C:\ProgramData\CenterEK-DeploymentReceipts. Domain computers have change access at the share layer, but NTFS grants write access only to each computer's own new per-run receipt folder. The existing code/package share stays read-only. Receipts contain policy scope, source access, error ID/type/line and whether an agent task was registered; no enrollment secrets or source/error-line text is logged. Treat receipts as untrusted computer-supplied diagnostics, not authenticated proof of installation or telemetry. A bounded locked-handle reader rejects diagnostic files resolving outside the expected path.
+
+The CSV beside the invoker contains one status per target, bootstrap exit code, diagnostic path, unresolved temporary task name and error type. TASK_REGISTERED_VERIFY_TELEMETRY means a task appeared and bootstrap returned zero; it does not claim Azure delivery. INSTALL_FAILED or REMOTE_ACCESS_FAILED must be investigated before claiming fleet coverage. In particular Last Result 1 alone is insufficient to determine execution policy, permissions or installer failure.
+
 Startup skips existing installations. A broken partial installation is reported rather than overwritten. Keep the distribution available for offline PCs; after verified installation remove its plaintext enrollment from private transfer copies/distribution as appropriate. Do not remove protected data\secure settings on the endpoint. Revoke individual credentials through the existing registry if a machine is retired. Removing the GPO link stops new installations; it does not uninstall working agents. No automatic reboot or remote firewall opening is performed.
