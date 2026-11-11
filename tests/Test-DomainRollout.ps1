@@ -10,7 +10,7 @@ $worker=[scriptblock]::Create($text.Substring(1,$text.Length-2))
 # access AD, change permissions or run the embedded endpoint command.
 function New-Object {param([string]$ComObject) if($ComObject -ne 'Schedule.Service'){throw 'Unexpected COM class'};return $script:service}
 function Start-Sleep {param([int]$Seconds)}
-foreach($scenario in @('existing','disabled','blocked','success','failed','timeout')){
+foreach($scenario in @('existing','disabled','blocked','registerblocked','success','failed','timeout')){
     $script:scenario=$scenario;$script:registered=0;$script:deleted=0
     $script:task=[pscustomobject]@{State=3;LastTaskResult=0}
     $script:running=[pscustomobject]@{State=3}
@@ -30,6 +30,7 @@ foreach($scenario in @('existing','disabled','blocked','success','failed','timeo
     }
     $script:folder|Add-Member ScriptMethod RegisterTaskDefinition {
         param($name,$definition,$flags,$user,$password,$logon,$sddl)
+        if($script:scenario -eq 'registerblocked'){throw [UnauthorizedAccessException]::new('Registration blocked')}
         if($flags -ne 2 -or $user -ne 'SYSTEM' -or $password -or $logon -ne 5){throw 'Unsafe task registration'}
         if($definition.PSObject.Properties.Name -contains 'Triggers'){throw 'Bootstrap must be demand-only'}
         if($script:action.Arguments -match '(?:^|\s)-ExecutionPolicy|EncodedCommand|\bBypass\b'){throw 'Policy bypass rejected'}
@@ -49,11 +50,12 @@ foreach($scenario in @('existing','disabled','blocked','success','failed','timeo
     }
     $timeout=if($scenario -eq 'timeout'){-1}else{30}
     $result=& $worker 'PC-07' 'pc-07.volonet.local' '\\VOLO.volonet.local\CenterEKDeploy$\Start-DomainEndpoint.ps1' '\\VOLO.volonet.local\CenterEKDeployLogs$\run\PC-07\result.json' $timeout
-    $expected=@{existing='EXISTING_TASK';disabled='EXISTING_TASK_DISABLED';blocked='REMOTE_ACCESS_FAILED';success='TASK_REGISTERED_VERIFY_TELEMETRY';failed='INSTALL_FAILED';timeout='REMOTE_TASK_TIMEOUT'}[$scenario]
+    $expected=@{existing='EXISTING_TASK';disabled='EXISTING_TASK_DISABLED';blocked='REMOTE_ACCESS_FAILED';registerblocked='REMOTE_OPERATION_FAILED';success='TASK_REGISTERED_VERIFY_TELEMETRY';failed='INSTALL_FAILED';timeout='REMOTE_TASK_TIMEOUT'}[$scenario]
     if($result.Status -ne $expected){throw ('Unexpected '+$scenario+' result: '+($result|ConvertTo-Json -Compress))}
     if($scenario -in @('existing','disabled','blocked') -and $script:registered){throw 'Existing/blocked machine modified'}
     if($scenario -in @('success','failed') -and $script:deleted -ne 1){throw 'Completed bootstrap not cleaned up'}
     if($scenario -eq 'timeout' -and $script:deleted){throw 'Running task was deleted'}
+    if($scenario -eq 'registerblocked' -and $result.ErrorType -notmatch '^register_bootstrap .*HRESULT=0x80070005$'){throw 'Registration failure stage/code lost'}
     if($scenario -eq 'success'){$diagnosticArguments=$script:action.Arguments}
     Write-Output ('PASS '+$scenario)
 }

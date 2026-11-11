@@ -107,10 +107,15 @@ $worker={
         }
     }
     $folder=$null;$created=$false;$temporary='CenterEK-Deploy-'+[Guid]::NewGuid().ToString('N')
+    $stage='connect'
     try{
         $service=New-Object -ComObject Schedule.Service
-        $service.Connect($Fqdn)
+        # Match the short AD name already used by schtasks /S. A stale FQDN
+        # record must not silently select a different deployment target.
+        $service.Connect($Computer)
+        $stage='open_task_folder'
         $folder=$service.GetFolder('\')
+        $stage='query_existing_agent'
         $agent=Existing-Agent $folder
         if($agent){
             $result.Status=if($agent.Enabled){'EXISTING_TASK'}else{'EXISTING_TASK_DISABLED'}
@@ -143,6 +148,7 @@ $worker={
 '@
         $packages=Split-Path -Parent $Startup
         $command=$command.Replace('__STARTUP__',$Startup).Replace('__PACKAGES__',($packages+'\packages')).Replace('__RECEIPT__',$Receipt)
+        $stage='build_task_definition'
         $definition=$service.NewTask(0)
         $definition.RegistrationInfo.Description='CenterEK on-demand workstation deployment; machine-specific diagnostic receipt'
         $definition.Principal.UserId='SYSTEM';$definition.Principal.LogonType=5;$definition.Principal.RunLevel=1
@@ -154,9 +160,12 @@ $worker={
         $action.Path='%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe'
         $action.Arguments='-NoProfile -NonInteractive -WindowStyle Hidden -Command "'+$command.Replace('"','\"')+'"'
         # TASK_CREATE only; never replace an existing task. No startup trigger.
+        $stage='register_bootstrap'
         $task=$folder.RegisterTaskDefinition($temporary,$definition,2,'SYSTEM',$null,5,$null)
         $created=$true;$result.TemporaryTask=$temporary
+        $stage='run_bootstrap'
         $running=$task.Run($null)
+        $stage='wait_bootstrap'
         $limit=[DateTime]::UtcNow.AddSeconds($Timeout)
         do{
             Start-Sleep -Seconds 2
@@ -165,10 +174,16 @@ $worker={
         if($running.State -in @(2,4)){$result.Status='REMOTE_TASK_TIMEOUT'}
         else{
             $result.TaskResult=[string]$task.LastTaskResult
+            $stage='verify_agent'
             $agent=Existing-Agent $folder
             $result.Status=if($agent -and $task.LastTaskResult -eq 0){'TASK_REGISTERED_VERIFY_TELEMETRY'}else{'INSTALL_FAILED'}
         }
-    }catch{$result.ErrorType=$_.Exception.GetType().FullName}
+    }catch{
+        $errorObject=$_.Exception
+        while($errorObject.InnerException){$errorObject=$errorObject.InnerException}
+        $result.Status=if($stage -eq 'connect'){'REMOTE_ACCESS_FAILED'}else{'REMOTE_OPERATION_FAILED'}
+        $result.ErrorType=$stage+' '+$errorObject.GetType().FullName+' HRESULT=0x'+$errorObject.HResult.ToString('X8')
+    }
     finally{
         if($created -and $folder){
             try{
@@ -204,6 +219,7 @@ for($index=0;$index -lt $targets.Count;$index+=$Throttle){
         foreach($row in $rows){
             $row|Select-Object Computer,Status,TaskResult,Diagnostic,TemporaryTask,ErrorType|Export-Csv -LiteralPath $reportPath -NoTypeInformation -Append -Encoding UTF8
             Write-Output ($row.Computer+' '+$row.Status+' result='+$row.TaskResult)
+            if($row.ErrorType){Write-Output ('DETAIL='+$row.ErrorType)}
             # Receipts are untrusted per-machine data. Print only bounded JSON
             # fields; never execute or recursively enumerate machine content.
             $local=Join-Path $runRoot ($entry.Computer+'\result.json')
