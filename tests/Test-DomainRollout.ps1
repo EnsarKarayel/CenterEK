@@ -79,6 +79,22 @@ try{
     $record=Get-Content -LiteralPath $receipt -Raw|ConvertFrom-Json
     if($record.stage -ne 'installer' -or $record.error_id -ne 'EXPECTED_TEST_FAILURE' -or -not $record.script_access -or -not $record.package_access){throw 'Diagnostic content incorrect'}
     Write-Output 'PASS native diagnostic process'
+    $reader=$ast.Find({param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Add-Type'},$true)
+    Add-Type -TypeDefinition $reader.CommandElements[-1].Value
+    $read=[CenterEKReceiptReader]::Read($receipt)|ConvertFrom-Json
+    if($read.error_id -ne 'EXPECTED_TEST_FAILURE'){throw 'Receipt handle read failed'}
+    $linked=Join-Path $fixture 'linked'
+    New-Item -ItemType Junction -Path $linked -Target $fixture|Out-Null
+    $rejected=$false
+    try{[void][CenterEKReceiptReader]::Read((Join-Path $linked 'result.json'))}catch{$rejected=$true}
+    if(-not $rejected){throw 'Junction diagnostic was not rejected'}
+    # Remove the junction itself, never traverse it during recursive cleanup.
+    [IO.Directory]::Delete($linked)
+    [IO.File]::WriteAllText($receipt,('x'*16385))
+    $rejected=$false
+    try{[void][CenterEKReceiptReader]::Read($receipt)}catch{$rejected=$true}
+    if(-not $rejected){throw 'Oversize diagnostic was not rejected'}
+    Write-Output 'PASS bounded receipt and junction rejection'
 }finally{
     $process.Dispose()
     $absolute=[IO.Path]::GetFullPath($fixture)
