@@ -72,6 +72,9 @@ jobs:
       - name: Verify DNS client repair rollback with mocked networking commands
         shell: powershell
         run: ./tests/Test-OfficeDnsClient.ps1
+      - name: Verify scoped network audit with fake DNS and a local loopback socket
+        shell: powershell
+        run: ./tests/Test-DomainNetworkAudit.ps1
       - name: Summary
         if: always()
         shell: pwsh
