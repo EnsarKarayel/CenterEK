@@ -25,6 +25,7 @@ foreach($case in @('dnsfail','noa','outside','none','ping','smb','rpc','multi'))
     if($r.Status -ne $expected){throw ('Incorrect audit status '+$case+': '+$r.Status)}
     if(@($script:probed|Where-Object {-not $_.StartsWith('192.168.1.')} ).Count){throw 'Audit probed outside office scope'}
     if($case -in @('dnsfail','noa','outside') -and $script:probed.Count){throw 'Invalid/no DNS answers triggered a transport probe'}
+    if($case -in @('dnsfail','noa','outside') -and ($null -ne $r.Tcp445 -or $null -ne $r.PingResponded)){throw 'Untested transport was reported false instead of unknown'}
     if($case -eq 'multi' -and $script:probed.Count -ne 8){throw 'Multiple DNS answers were not capped at four addresses'}
     if($case -eq 'smb' -and (-not $r.Tcp445 -or $r.Tcp135)){throw 'SMB and RPC results conflated'}
     Write-Output ('PASS '+$case)
@@ -38,3 +39,28 @@ try{
 }finally{$listener.Stop()}
 if(Probe-Port '127.0.0.1' $portNumber){throw 'Closed socket was reported open'}
 Write-Output 'PASS real loopback open/closed socket probe'
+$collector=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Receive-NetworkAuditJob'},$true)
+. ([scriptblock]::Create($collector.Extent.Text))
+# Real Windows PowerShell background jobs exercise the parent aggregation path,
+# including the single-PSCustomObject Count regression seen on the DC.
+foreach($case in @('single','multiple','failed','empty','timeout')){
+    $job=Start-Job -ScriptBlock {
+        param($Case)
+        if($Case -eq 'failed'){throw 'Expected test job failure'}
+        if($Case -eq 'timeout'){Start-Sleep -Seconds 30;return}
+        if($Case -eq 'empty'){return}
+        [pscustomobject]@{Computer='PC-08';Status='NO_PROBE_RESPONSE';PingResponded=$false;Tcp445=$false;Tcp135=$false}
+        if($Case -eq 'multiple'){[pscustomobject]@{Computer='PC-09';Status='MANAGEMENT_PORT_RESPONSE';PingResponded=$true;Tcp445=$true;Tcp135=$false}}
+    } -ArgumentList $case
+    try{
+        if($case -ne 'timeout'){[void](Wait-Job -Job $job -Timeout 15)}
+        $deadline=if($case -eq 'timeout'){[DateTime]::UtcNow.AddSeconds(-1)}else{[DateTime]::UtcNow.AddSeconds(15)}
+        $result=@(Receive-NetworkAuditJob @{Job=$job;Computer='PC-08'} $deadline '192.168.1.10')
+        $expected=@{single='NO_PROBE_RESPONSE';multiple='NO_PROBE_RESPONSE';failed='AUDIT_JOB_FAILED';empty='AUDIT_NO_RESULT';timeout='AUDIT_TIMEOUT'}[$case]
+        if(-not $result.Count -or $result[0].Status -ne $expected){throw ('Job result aggregation failed: '+$case)}
+        if($case -eq 'single' -and $result.Count -ne 1){throw 'Single result was not preserved'}
+        if($case -eq 'multiple' -and $result.Count -ne 2){throw 'Multiple results were not preserved'}
+        if($case -in @('failed','empty','timeout') -and $null -ne $result[0].Tcp445){throw 'Unknown port result became false'}
+        Write-Output ('PASS real job aggregation '+$case)
+    }finally{if($job.State -eq 'Running'){Stop-Job -Job $job};Remove-Job -Job $job}
+}

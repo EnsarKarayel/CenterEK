@@ -6,6 +6,18 @@ param(
 # Read-only endpoint diagnostics. No authentication by IP, installation, port
 # opening, restart or AD/DNS record modification. Probe only office /22 IPs.
 $ErrorActionPreference='Stop'
+function Receive-NetworkAuditJob($Entry,[DateTime]$Deadline,[string]$Server){
+    $done=Wait-Job -Job $Entry.Job -Timeout ([Math]::Max(1,[int]($Deadline-[DateTime]::UtcNow).TotalSeconds))
+    # Windows PowerShell 5.1 PSCustomObject has no Count property. Preserve the
+    # array at assignment, not only inside an if branch's enumerated output.
+    $received=@()
+    if($done){$received=@(Receive-Job -Job $Entry.Job -ErrorAction SilentlyContinue)}
+    if($received.Count){return $received}
+    $status=if(-not $done){'AUDIT_TIMEOUT'}elseif($Entry.Job.State -eq 'Failed'){'AUDIT_JOB_FAILED'}else{'AUDIT_NO_RESULT'}
+    $types=@($Entry.Job.ChildJobs|ForEach-Object {if($_.JobStateInfo.Reason){$_.JobStateInfo.Reason.GetType().FullName}})
+    if(-not $done){Stop-Job -Job $Entry.Job}
+    [pscustomobject]@{Computer=$Entry.Computer;Fqdn='';DnsServer=$Server;Addresses='';ProbedAddresses='';OutsideScopeAddresses='';PingResponded=$null;Tcp445=$null;Tcp135=$null;Status=$status;LastLogonApproxDays='';ErrorType=($types -join ',')}
+}
 Import-Module ActiveDirectory
 $file=Get-Item -LiteralPath $RetryReport
 if($file.Length -gt 10MB -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Unsafe input report'}
@@ -23,8 +35,8 @@ $output=Join-Path $PSScriptRoot ('network-audit-'+[Guid]::NewGuid().ToString('N'
 $worker={
     param($Computer,$Fqdn,$LastLogon,$DnsServer)
     $ErrorActionPreference='Stop'
-    $result=[ordered]@{Computer=$Computer;Fqdn=$Fqdn;DnsServer=$DnsServer;Addresses='';ProbedAddresses='';OutsideScopeAddresses='';PingResponded=$false;Tcp445=$false;Tcp135=$false;Status='DNS_LOOKUP_FAILED';LastLogonApproxDays='';ErrorType=''}
-    if($LastLogon){$result.LastLogonApproxDays=[Math]::Floor(([DateTime]::UtcNow-([DateTime]$LastLogon).ToUniversalTime()).TotalDays)}
+    $result=[ordered]@{Computer=$Computer;Fqdn=$Fqdn;DnsServer=$DnsServer;Addresses='';ProbedAddresses='';OutsideScopeAddresses='';PingResponded=$null;Tcp445=$null;Tcp135=$null;Status='DNS_LOOKUP_FAILED';LastLogonApproxDays='';ErrorType=''}
+    if($LastLogon){try{$result.LastLogonApproxDays=[Math]::Floor(([DateTime]::UtcNow-([DateTime]$LastLogon).ToUniversalTime()).TotalDays)}catch{$result.ErrorType='ADLogonMetadataUnavailable'}}
     function Office-Address([string]$Text){
         $ip=$null
         if(-not [Net.IPAddress]::TryParse($Text,[ref]$ip) -or $ip.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork){return $false}
@@ -59,6 +71,7 @@ $worker={
         # Bound even unexpectedly multi-homed/stale DNS answers.
         $probe=@($allowed|Select-Object -First 4)
         $result.ProbedAddresses=$probe -join ','
+        $result.PingResponded=$false;$result.Tcp445=$false;$result.Tcp135=$false
         foreach($address in $probe){
             if(Probe-Ping $address){$result.PingResponded=$true}
             if(Probe-Port $address 445){$result.Tcp445=$true}
@@ -78,12 +91,7 @@ for($index=0;$index -lt $targets.Count;$index+=$Throttle){
     }
     $deadline=[DateTime]::UtcNow.AddSeconds(45)
     foreach($entry in $jobs){
-        $done=Wait-Job -Job $entry.Job -Timeout ([Math]::Max(1,[int]($deadline-[DateTime]::UtcNow).TotalSeconds))
-        $received=if($done){@(Receive-Job -Job $entry.Job -ErrorAction SilentlyContinue)}else{@()}
-        if(-not $received.Count){
-            Stop-Job -Job $entry.Job
-            $received=@([pscustomobject]@{Computer=$entry.Computer;Fqdn='';DnsServer=$DnsServer;Addresses='';ProbedAddresses='';OutsideScopeAddresses='';PingResponded=$false;Tcp445=$false;Tcp135=$false;Status='AUDIT_TIMEOUT_OR_JOB_FAILED';LastLogonApproxDays='';ErrorType=''})
-        }
+        $received=@(Receive-NetworkAuditJob $entry $deadline $DnsServer)
         foreach($row in $received){
             $row|Select-Object Computer,Fqdn,DnsServer,Addresses,ProbedAddresses,OutsideScopeAddresses,PingResponded,Tcp445,Tcp135,Status,LastLogonApproxDays,ErrorType|Export-Csv -LiteralPath $output -NoTypeInformation -Append -Encoding UTF8
             Write-Output ($row.Computer+' '+$row.Status+' IP='+$row.Addresses+' ping='+$row.PingResponded+' tcp445='+$row.Tcp445+' tcp135='+$row.Tcp135)
