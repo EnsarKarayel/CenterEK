@@ -10,7 +10,7 @@ $worker=[scriptblock]::Create($text.Substring(1,$text.Length-2))
 # access AD, change permissions or run the embedded endpoint command.
 function New-Object {param([string]$ComObject) if($ComObject -ne 'Schedule.Service'){throw 'Unexpected COM class'};return $script:service}
 function Start-Sleep {param([int]$Seconds)}
-foreach($scenario in @('existing','disabled','blocked','registerblocked','success','fqdnonly','shortonly','bothnamesbad','finishedhandle','failed','timeout')){
+foreach($scenario in @('existing','disabled','blocked','registerblocked','success','fqdnonly','shortonly','bothnamesbad','finishedhandle','failed','namemismatch','timeout')){
     $script:scenario=$scenario;$script:registered=0;$script:deleted=0
     $script:connections=@()
     $script:task=[pscustomobject]@{State=3;LastTaskResult=0}
@@ -20,6 +20,7 @@ foreach($scenario in @('existing','disabled','blocked','registerblocked','succes
         if($script:scenario -ne 'timeout'){$this.State=3}
     }
     if($scenario -eq 'failed'){$script:task.LastTaskResult=1}
+    if($scenario -eq 'namemismatch'){$script:task.LastTaskResult=13}
     if($scenario -eq 'timeout'){$script:running.State=4;$script:task.State=4}
     $script:task|Add-Member ScriptMethod Run {param($nothing) return $script:running}
     $script:folder=[pscustomobject]@{}
@@ -60,10 +61,10 @@ foreach($scenario in @('existing','disabled','blocked','registerblocked','succes
     }
     $timeout=if($scenario -eq 'timeout'){-1}else{30}
     $result=& $worker 'PC-07' 'pc-07.volonet.local' '\\VOLO.volonet.local\CenterEKDeploy$\Start-DomainEndpoint.ps1' '\\VOLO.volonet.local\CenterEKDeployLogs$\run\PC-07\result.json' $timeout
-    $expected=@{existing='EXISTING_TASK';disabled='EXISTING_TASK_DISABLED';blocked='REMOTE_ACCESS_FAILED';registerblocked='REMOTE_OPERATION_FAILED';success='TASK_REGISTERED_VERIFY_TELEMETRY';fqdnonly='TASK_REGISTERED_VERIFY_TELEMETRY';shortonly='TASK_REGISTERED_VERIFY_TELEMETRY';bothnamesbad='REMOTE_ACCESS_FAILED';finishedhandle='TASK_REGISTERED_VERIFY_TELEMETRY';failed='INSTALL_FAILED';timeout='REMOTE_TASK_TIMEOUT'}[$scenario]
+    $expected=@{existing='EXISTING_TASK';disabled='EXISTING_TASK_DISABLED';blocked='REMOTE_ACCESS_FAILED';registerblocked='REMOTE_OPERATION_FAILED';success='TASK_REGISTERED_VERIFY_TELEMETRY';fqdnonly='TASK_REGISTERED_VERIFY_TELEMETRY';shortonly='TASK_REGISTERED_VERIFY_TELEMETRY';bothnamesbad='REMOTE_ACCESS_FAILED';finishedhandle='TASK_REGISTERED_VERIFY_TELEMETRY';failed='INSTALL_FAILED';namemismatch='TARGET_NAME_MISMATCH';timeout='REMOTE_TASK_TIMEOUT'}[$scenario]
     if($result.Status -ne $expected){throw ('Unexpected '+$scenario+' result: '+($result|ConvertTo-Json -Compress))}
     if($scenario -in @('existing','disabled','blocked','bothnamesbad') -and $script:registered){throw 'Existing/blocked machine modified'}
-    if($scenario -in @('success','fqdnonly','shortonly','finishedhandle','failed') -and $script:deleted -ne 1){throw 'Completed bootstrap not cleaned up'}
+    if($scenario -in @('success','fqdnonly','shortonly','finishedhandle','failed','namemismatch') -and $script:deleted -ne 1){throw 'Completed bootstrap not cleaned up'}
     if($scenario -eq 'fqdnonly' -and ($script:connections.Count -ne 1 -or $script:connections[0] -ne 'pc-07.volonet.local')){throw 'AD FQDN was not tried first'}
     if($scenario -eq 'shortonly' -and ($script:connections.Count -ne 2 -or $script:connections[1] -ne 'PC-07')){throw 'Network failure did not try AD short name'}
     if($scenario -eq 'blocked' -and $script:connections.Count -ne 1){throw 'Access denied incorrectly retried under another name'}
@@ -111,6 +112,7 @@ New-Item -ItemType Directory -Path $stagingParent|Out-Null
 # structure but substitute only this test user's SID and an owned temp parent.
 $testSid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $arguments=$arguments.Replace('$env:ProgramData',("'"+$stagingParent+"'")).Replace('S-1-5-32-544',$testSid)
+$arguments=$arguments.Replace('$expected=''PC-07''',('$expected='''+$env:COMPUTERNAME+''''))
 $process=[Diagnostics.Process]::new()
 $process.StartInfo=[Diagnostics.ProcessStartInfo]::new('powershell.exe',$arguments)
 $process.StartInfo.UseShellExecute=$false
@@ -133,6 +135,14 @@ try{
     # Restore source marker only in the disposable test fixture.
     Remove-Item -LiteralPath (Join-Path $packageFixture 'Install-EndpointPilot.ps1') -Stream Zone.Identifier
     Write-Output 'PASS origin metadata preserved and RemoteSigned block reported'
+    $mismatchReceipt=$receipt+'.identity.json'
+    $mismatchArguments=$arguments.Replace(('$expected='''+$env:COMPUTERNAME+''''),'$expected=''WRONG-PC''').Replace($receipt,$mismatchReceipt)
+    $process.StartInfo.Arguments=$mismatchArguments
+    [void]$process.Start()
+    if(-not $process.WaitForExit(15000)){$process.Kill();throw 'Identity test timed out'}
+    $mismatch=Get-Content -LiteralPath $mismatchReceipt -Raw|ConvertFrom-Json
+    if($process.ExitCode -ne 13 -or $mismatch.stage -ne 'identity' -or $mismatch.error_id -ne 'TargetComputerMismatch' -or @(Get-ChildItem -LiteralPath $stagingParent -Force).Count){throw 'Wrong-host deployment was not stopped before staging'}
+    Write-Output 'PASS actual computer identity mismatch stops before staging'
     $runtime=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Update-PackageRuntime'},$true)
     . ([scriptblock]::Create($runtime.Extent.Text))
     $package=Join-Path $fixture 'runtime'

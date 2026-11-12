@@ -212,6 +212,8 @@ $worker={
     $stagePath=$null
     $names=@('Collect-EndpointSessions.ps1','Send-Report.ps1','Setup-Agent.ps1','Install-SystemTask.ps1','Run-SystemTask.ps1','Install-EndpointPilot.ps1','enrollment.local.json','panel-ca.pem')
     try {
+        $expected='__EXPECTED_COMPUTER__'
+        if($expected -and $env:COMPUTERNAME -ine $expected){$r.stage='identity';$code=13;throw 'TargetComputerMismatch'}
         $r.policy=@(Get-ExecutionPolicy -List|ForEach-Object {@{scope=[string]$_.Scope;policy=[string]$_.ExecutionPolicy}})
         $r.script_access=Test-Path -LiteralPath '__STARTUP__'
         $r.package_access=Test-Path -LiteralPath ('__PACKAGES__\'+$env:COMPUTERNAME+'\enrollment.local.json')
@@ -260,12 +262,13 @@ $worker={
             try{[IO.Directory]::Delete($stagePath)}catch{}
         }
     }
-    try {$r|ConvertTo-Json -Depth 5|Set-Content -LiteralPath '__RECEIPT__' -Encoding UTF8} catch {exit 2}
+    $receipt='__RECEIPT__'.Replace('{COMPUTER}',$env:COMPUTERNAME)
+    try {$r|ConvertTo-Json -Depth 5|Set-Content -LiteralPath $receipt -Encoding UTF8} catch {if($code -eq 13){exit 13};exit 2}
     exit $code
 }
 '@
         $packages=Split-Path -Parent $Startup
-        $command=$command.Replace('__STARTUP__',$Startup).Replace('__PACKAGES__',($packages+'\packages')).Replace('__RECEIPT__',$Receipt)
+        $command=$command.Replace('__STARTUP__',$Startup).Replace('__PACKAGES__',($packages+'\packages')).Replace('__RECEIPT__',$Receipt).Replace('__EXPECTED_COMPUTER__',$Computer)
         $stage='build_task_definition'
         $definition=$service.NewTask(0)
         $definition.RegistrationInfo.Description='CenterEK on-demand workstation deployment; machine-specific diagnostic receipt'
@@ -302,7 +305,7 @@ $worker={
             $result.TaskResult=[string]$task.LastTaskResult
             $stage='verify_agent'
             $agent=Existing-Agent $folder
-            $result.Status=if($agent -and $task.LastTaskResult -eq 0){'TASK_REGISTERED_VERIFY_TELEMETRY'}else{'INSTALL_FAILED'}
+            $result.Status=if($task.LastTaskResult -eq 13){'TARGET_NAME_MISMATCH'}elseif($agent -and $task.LastTaskResult -eq 0){'TASK_REGISTERED_VERIFY_TELEMETRY'}else{'INSTALL_FAILED'}
         }
     }catch{
         $errorObject=$_.Exception
