@@ -66,6 +66,18 @@ jobs:
       - name: Parse all PowerShell scripts without executing them
         shell: powershell
         run: ./scripts/ci/Test-PowerShell.ps1
+      - name: Exercise central rollout with a fake scheduler and local diagnostic fixture
+        shell: powershell
+        run: ./tests/Test-DomainRollout.ps1
+      - name: Verify DNS client repair rollback with mocked networking commands
+        shell: powershell
+        run: ./tests/Test-OfficeDnsClient.ps1
+      - name: Verify scoped network audit with fake DNS and a local loopback socket
+        shell: powershell
+        run: ./tests/Test-DomainNetworkAudit.ps1
+      - name: Verify client-initiated launcher with a native CMD fixture
+        shell: powershell
+        run: ./tests/Test-DomainPullLauncher.ps1
       - name: Summary
         if: always()
         shell: pwsh
