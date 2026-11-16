@@ -81,6 +81,9 @@ jobs:
       - name: Verify relay unlimited runtime and recovery using client-only CIM objects
         shell: powershell
         run: ./tests/Test-SiteRelayRepair.ps1
+      - name: Verify exact monitor process ownership without stopping processes
+        shell: powershell
+        run: ./tests/Test-MonitorRecovery.ps1
       - name: Summary
         if: always()
         shell: pwsh
