@@ -51,7 +51,7 @@ with closing(sqlite3.connect(sys.argv[1],timeout=5)) as source:
         if target.execute('PRAGMA quick_check').fetchone()[0]!='ok': raise RuntimeError('backup integrity check failed')
 print('DATABASE_BACKUP_OK',flush=True)
 '@
-[IO.File]::WriteAllText((Join-Path $backup 'backup.py'),$backupProgram,[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $backup 'backup.py'),$backupProgram,(New-Object Text.UTF8Encoding($false)))
 Write-Output ('RECOVERY_BACKUP='+$backup)
 Disable-ScheduledTask -TaskName $name|Out-Null
 Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
@@ -73,8 +73,8 @@ try{
     Start-Sleep -Seconds 2
     if(@(Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue).Count){throw 'A listener remains after owned-process cleanup; no new instance started'}
     $arguments=@(('"'+(Join-Path $backup 'backup.py')+'"'),('"'+(Join-Path $rootPath 'data\monitor.sqlite3')+'"'),('"'+(Join-Path $backup 'monitor.sqlite3')+'"'))
-    $process=[Diagnostics.Process]::new()
-    $process.StartInfo=[Diagnostics.ProcessStartInfo]::new($PythonPath,($arguments -join ' '))
+    $process=New-Object Diagnostics.Process
+    $process.StartInfo=New-Object Diagnostics.ProcessStartInfo -ArgumentList @($PythonPath,($arguments -join ' '))
     $process.StartInfo.WorkingDirectory=$rootPath
     $process.StartInfo.UseShellExecute=$false;$process.StartInfo.CreateNoWindow=$true
     $process.StartInfo.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden

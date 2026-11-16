@@ -22,3 +22,16 @@ foreach($case in $cases){
     if($actual -ne $case[2]){throw ('Unsafe process ownership classification: '+$case[1])}
 }
 Write-Output 'PASS exact-root process ownership: other Python, SQL, mode, prefix and inline commands excluded'
+$modern=$ast.FindAll({param($node) $node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $node.Static -and $node.Member.Value -eq 'new'},$true)
+if(@($modern).Count){throw 'Recovery must not use PowerShell 5+ ::new() constructors on Server 2012 R2'}
+$encoding=New-Object Text.UTF8Encoding($false)
+if($encoding.GetPreamble().Length){throw 'Legacy-compatible UTF8 constructor incorrect'}
+$process=New-Object Diagnostics.Process
+$process.StartInfo=New-Object Diagnostics.ProcessStartInfo -ArgumentList @($env:ComSpec,'/d /c exit 0')
+$process.StartInfo.UseShellExecute=$false;$process.StartInfo.CreateNoWindow=$true
+try{
+    [void]$process.Start()
+    if(-not $process.WaitForExit(10000)){$process.Kill();throw 'Legacy constructor fixture timeout'}
+    if($process.ExitCode -ne 0){throw 'Legacy constructor fixture failed'}
+}finally{$process.Dispose()}
+Write-Output 'PASS legacy constructor guard and native process fixture'
