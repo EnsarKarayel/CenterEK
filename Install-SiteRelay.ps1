@@ -40,9 +40,12 @@ try{$protected=[Convert]::ToBase64String([Security.Cryptography.ProtectedData]::
 $arguments='-NoProfile -WindowStyle Hidden -File "'+(Join-Path $root 'Run-SiteRelay.ps1')+'" -SourceRoot "'+$source+'" -PythonPath "'+$PythonPath+'"'
 $action=New-ScheduledTaskAction -Execute (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -Argument $arguments -WorkingDirectory $root
 $trigger=New-ScheduledTaskTrigger -AtStartup
+$repeat=New-CimInstance -Namespace 'Root/Microsoft/Windows/TaskScheduler' -ClassName MSFT_TaskRepetitionPattern -ClientOnly -Property @{Interval='PT5M';StopAtDurationEnd=$false}
+$recovery=New-CimInstance -Namespace 'Root/Microsoft/Windows/TaskScheduler' -ClassName MSFT_TaskTimeTrigger -ClientOnly -Property @{Id='CenterEKRelayRecoveryV1';Enabled=$true;StartBoundary=(Get-Date).AddMinutes(5).ToString('yyyy-MM-ddTHH:mm:ss');Repetition=$repeat}
+$recovery.PSObject.TypeNames.Add('Microsoft.Management.Infrastructure.CimInstance#MSFT_TaskTrigger')
 $account=New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 $taskSettings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Principal $account -Settings $taskSettings|Out-Null
+Register-ScheduledTask -TaskName $name -Action $action -Trigger @($trigger,$recovery) -Principal $account -Settings $taskSettings|Out-Null
 Start-ScheduledTask -TaskName $name
 Write-Output 'Office relay installed as SYSTEM; no inbound firewall rule or device credentials were changed.'
 Write-Output 'Securely remove the plaintext enrollment after verifying the first accepted report.'

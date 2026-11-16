@@ -78,6 +78,9 @@ jobs:
       - name: Verify client-initiated launcher with a native CMD fixture
         shell: powershell
         run: ./tests/Test-DomainPullLauncher.ps1
+      - name: Verify relay unlimited runtime and recovery using client-only CIM objects
+        shell: powershell
+        run: ./tests/Test-SiteRelayRepair.ps1
       - name: Summary
         if: always()
         shell: pwsh
