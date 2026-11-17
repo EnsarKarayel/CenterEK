@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$Bundle,
       [Parameter(Mandatory=$true)][string]$ReportFolder,
+      [string]$PreviousBundle,
       [switch]$ConfirmIsolatedMachine)
 $ErrorActionPreference='Stop'
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
@@ -14,8 +15,22 @@ $pythonCommands=@(Get-Command python.exe,python3.exe -ErrorAction SilentlyContin
 if($python.Count -or $pythonCommands.Count){throw 'A clean Windows image without Python is required'}
 $exe=Join-Path ([IO.Path]::GetFullPath($Bundle)) 'CenterEK-Setup.exe'
 if(-not(Test-Path -LiteralPath $exe)){throw 'Complete extracted bundle required'}
+$currentExe=$exe
+if($PreviousBundle){
+    $previousPolicy=[IO.File]::ReadAllText((Join-Path $PreviousBundle '_internal\release-policy.json'))|ConvertFrom-Json
+    $currentPolicy=[IO.File]::ReadAllText((Join-Path $Bundle '_internal\release-policy.json'))|ConvertFrom-Json
+    if($previousPolicy.mode -ne 'preview' -or $currentPolicy.mode -ne 'preview'){throw 'PreviousBundle workflow is for preview lifecycle regression only'}
+    $exe=Join-Path $PreviousBundle 'CenterEK-Setup.exe'
+    if(-not(Test-Path -LiteralPath $exe)){throw 'Previous package executable missing'}
+}
 New-Item -ItemType Directory -Path $ReportFolder -Force|Out-Null
 $result=[ordered]@{kind='isolated-windows';python_absent=$true;os=(Get-CimInstance Win32_OperatingSystem).Caption;build=[Environment]::OSVersion.Version.ToString();bundle_exe_sha256=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLower();steps=[ordered]@{};ok=$false;reboot_test='pending';uac_interaction='pending';outer_setup_ui='pending'}
+if($PreviousBundle){$result.kind='isolated-windows-preview-lifecycle';$result.current_exe_sha256=(Get-FileHash -LiteralPath $currentExe -Algorithm SHA256).Hash.ToLower()}
+function Save-Progress([string]$Stage){
+    $result.stage=$Stage
+    $result|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $ReportFolder 'clean-windows-report.json') -Encoding UTF8
+}
+Save-Progress 'preflight_passed'
 $private=Join-Path $env:TEMP ('CenterEK-QA-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $private|Out-Null
 & icacls.exe $private /inheritance:r /grant:r ('*'+$identity.User.Value+':(OI)(CI)(F)') '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)'|Out-Null
@@ -36,8 +51,10 @@ try{
     }
     @{target=$target;username='qa-admin';password=$password;port=18765;mode='local';address='127.0.0.1';hostname='localhost';language='tr';endpoint=$true;directory=$false;trust_ca=$true;firewall=$false;auto_discover=$false}|ConvertTo-Json|Set-Content -LiteralPath $options -Encoding UTF8
     $installReport=Join-Path $private 'install.json'
+    Save-Progress 'installing'
     Invoke-Packaged @('--unattended-install',('"'+$options+'"'),'--report',('"'+$installReport+'"')) $installReport
     $result.steps.install=$true
+    Save-Progress 'checking_https_and_tasks'
     [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
     $base='https://127.0.0.1:18765'
     $session=New-Object Microsoft.PowerShell.Commands.WebRequestSession
@@ -78,16 +95,42 @@ try{
     $entry=Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CenterEK'
     if($entry.InstallLocation -ine $target){throw 'Apps & Features registration missing'}
     $result.steps.windows_registration=$true
+    if($PreviousBundle){
+        $initialVersion=$status.version
+        $initialId=([IO.File]::ReadAllText((Join-Path $target 'installation.local.json'))|ConvertFrom-Json).installation_id
+        $exe=$currentExe
+        Save-Progress 'upgrading_previous_package'
+        $upgradeReport=Join-Path $private 'upgrade.json'
+        Invoke-Packaged @('--maintenance-action','upgrade','--root',('"'+$target+'"'),'--report',('"'+$upgradeReport+'"')) $upgradeReport
+        Invoke-RestMethod -Uri ($base+'/api/login') -Method Post -ContentType 'application/json' -Headers @{Origin=$base} -Body $body -WebSession $session|Out-Null
+        $upgraded=Invoke-RestMethod -Uri ($base+'/api/status') -WebSession $session
+        if(([Version]($upgraded.version.Split('-')[0])) -le ([Version]($initialVersion.Split('-')[0]))){throw 'Runtime version did not upgrade'}
+        if(([IO.File]::ReadAllText((Join-Path $target 'installation.local.json'))|ConvertFrom-Json).installation_id -ne $initialId){throw 'Upgrade changed installation identity'}
+        $result.steps.upgrade_preserved_account=$true
+        $result.upgraded_version=$upgraded.version
+        Save-Progress 'rolling_back'
+        $rollbackReport=Join-Path $private 'rollback.json'
+        Invoke-Packaged @('--maintenance-action','rollback','--root',('"'+$target+'"'),'--report',('"'+$rollbackReport+'"')) $rollbackReport
+        Invoke-RestMethod -Uri ($base+'/api/login') -Method Post -ContentType 'application/json' -Headers @{Origin=$base} -Body $body -WebSession $session|Out-Null
+        $rolled=Invoke-RestMethod -Uri ($base+'/api/status') -WebSession $session
+        if($rolled.version -ne $initialVersion){throw 'Runtime version did not roll back'}
+        if(([IO.File]::ReadAllText((Join-Path $target 'installation.local.json'))|ConvertFrom-Json).installation_id -ne $initialId){throw 'Rollback changed installation identity'}
+        $result.steps.rollback_preserved_account=$true
+        $result.rolled_back_version=$rolled.version
+    }
+    Save-Progress 'uninstalling'
     $removeReport=Join-Path $private 'remove.json'
     Invoke-Packaged @('--maintenance-action','uninstall','--root',('"'+$target+'"'),'--report',('"'+$removeReport+'"')) $removeReport
     if((Test-Path -LiteralPath (Join-Path $target 'CenterEK.exe')) -or @(Get-ScheduledTask -TaskName 'CenterEK-*' -ErrorAction SilentlyContinue).Count){throw 'Uninstall left code/tasks behind'}
     if(-not(Test-Path -LiteralPath (Join-Path $target 'data\monitor.sqlite3'))){throw 'Uninstall removed customer data'}
     $result.steps.uninstall_preserves_data=$true
+    Save-Progress 'restoring'
     $restoreReport=Join-Path $private 'restore.json'
     Invoke-Packaged @('--maintenance-action','restore_uninstalled','--root',('"'+$target+'"'),'--report',('"'+$restoreReport+'"')) $restoreReport
     Invoke-RestMethod -Uri ($base+'/api/login') -Method Post -ContentType 'application/json' -Headers @{Origin=$base} -Body $body -WebSession $session|Out-Null
     $result.steps.restored_same_account=$true
     $result.ok=$true
+    Save-Progress 'completed'
 }catch{$result.error_type=$_.Exception.GetType().FullName;throw}
 finally{
     $password=$null;$body=$null

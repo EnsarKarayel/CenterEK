@@ -15,9 +15,26 @@ import time
 import urllib.request
 import uuid
 
-VERSION = '0.9.0-preview'
+VERSION = '0.9.2-preview'
 SCRIPTS = ('Install-SystemTask.ps1', 'Run-SystemTask.ps1', 'Collect-EndpointSessions.ps1',
            'Export-DirectoryInventory.ps1', 'Send-DirectoryInventory.ps1', 'Send-Report.ps1', 'Setup-Network.ps1', 'Detect-Networks.ps1', 'Maintenance-Tasks.ps1')
+
+
+def windows_computer_name():
+    """Use the same NetBIOS identity as Windows tasks/AD, not the DNS hostname."""
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    function = kernel.GetComputerNameExW
+    function.argtypes = [wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    function.restype = wintypes.BOOL
+    size = wintypes.DWORD(256)
+    buffer = ctypes.create_unicode_buffer(size.value)
+    if not function(0, buffer, ctypes.byref(size)):  # ComputerNameNetBIOS
+        raise ctypes.WinError(ctypes.get_last_error())
+    value = buffer.value.upper()
+    if not value or len(value) > 15:
+        raise ValueError('Windows computer identity is unavailable')
+    return value
 
 
 def check_ready(root):
@@ -216,7 +233,7 @@ def install(options, executable, assets, progress=lambda message: None):
         store = monitor.Store(target / 'data/monitor.sqlite3')
         try:
             auth.Auth(store).add_user(options.username, options.password, 'admin')
-            computer = socket.gethostname().upper()
+            computer = windows_computer_name()
             config = {'interval': 30, 'threshold': 3, 'timeout': 2, 'devices': [{
                 'id': 'local-host', 'name': computer, 'host': options.address, 'kind': 'Sunucu',
                 'method': 'tcp', 'port': options.port, 'agent_computer': computer}]}

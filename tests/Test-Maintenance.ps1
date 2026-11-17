@@ -2,7 +2,7 @@ $ErrorActionPreference='Stop'
 $errors=$null;$tokens=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path (Split-Path -Parent $PSScriptRoot) 'Maintenance-Tasks.ps1'),[ref]$tokens,[ref]$errors)
 if($errors){throw 'Maintenance script parse error'}
-foreach($name in @('Assert-Owned','Test-OwnedMaintenanceProcess','Assert-TaskXml')){
+foreach($name in @('Assert-Owned','Test-OwnedMaintenanceProcess','Assert-TaskXml','Convert-TaskState')){
     $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
     . ([scriptblock]::Create($function.Extent.Text))
 }
@@ -17,6 +17,18 @@ $arguments='-NoProfile -ExecutionPolicy RemoteSigned -WindowStyle Hidden -File "
 Assert-Owned (New-FixtureTask $arguments)
 $xml='<Task xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"><Principals><Principal><UserId>S-1-5-18</UserId></Principal></Principals><Actions><Exec><Command>'+$ps+'</Command><Arguments>'+[Security.SecurityElement]::Escape($arguments)+'</Arguments><WorkingDirectory>'+$Root+'</WorkingDirectory></Exec></Actions></Task>'
 Assert-TaskXml $xml
+$records=@([pscustomobject]@{name='CenterEK-Server-System';enabled=$true;xml=$xml},[pscustomobject]@{name='CenterEK-Endpoint-System';enabled=$true;xml=$xml})
+foreach($count in @(0,1,2)){
+    $subset=@($records|Select-Object -First $count)
+    $json=ConvertTo-Json -InputObject $subset -Depth 5
+    $parsed=@(Convert-TaskState $json)
+    if($parsed.Count -ne $count){throw 'JSON state task count changed'}
+    foreach($entry in $parsed){
+        if($entry -is [array] -or $entry.name -notin @('CenterEK-Server-System','CenterEK-Endpoint-System')){throw 'Nested or invalid task state'}
+        Assert-TaskXml $entry.xml
+    }
+}
+'PASS Windows PowerShell task-state JSON: empty, single and multiple tasks'
 $rejected=$false
 try{Assert-TaskXml ($xml.Replace('S-1-5-18','OtherUser'))}catch{$rejected=$true}
 if(-not $rejected){throw 'Foreign XML principal accepted'}

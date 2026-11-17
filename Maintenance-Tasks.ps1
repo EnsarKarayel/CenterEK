@@ -41,6 +41,12 @@ function Assert-TaskXml([string]$xml){
     $entry=$document.Task.Actions.Exec
     Assert-Owned ([pscustomobject]@{Principal=[pscustomobject]@{UserId=$document.Task.Principals.Principal.UserId};Actions=@([pscustomobject]@{Execute=$entry.Command;Arguments=$entry.Arguments;WorkingDirectory=$entry.WorkingDirectory})})
 }
+function Convert-TaskState([string]$Json){
+    # Windows PowerShell 5.1 emits a JSON array as one pipeline object.
+    # Assign first, then enumerate explicitly to handle zero/one/many tasks.
+    $decoded=ConvertFrom-Json -InputObject $Json
+    foreach($entry in @($decoded)){$entry}
+}
 # Validate every matching task before making any change.
 $tasks=@(foreach($name in $names){$t=Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue;if($t){Assert-Owned $t;$t}})
 if($Action -eq 'Stop'){
@@ -62,7 +68,7 @@ if($Action -eq 'Stop'){
     if(@(Get-CimInstance Win32_Process|Where-Object {$_.ExecutablePath -and $_.ExecutablePath -ieq $exe}).Count){throw 'Application did not stop'}
     return
 }
-$state=@(Get-Content -LiteralPath $StateFile -Raw|ConvertFrom-Json)
+$state=@(Convert-TaskState ([IO.File]::ReadAllText($StateFile)))
 $seen=@{}
 foreach($s in $state){
     if($s.name -notin $names -or $seen.ContainsKey($s.name)){throw 'Invalid task state'}
