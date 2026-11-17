@@ -6,6 +6,45 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+import monitor
+
+
+class MonitorInstanceTests(unittest.TestCase):
+    def test_second_process_is_blocked_and_crash_releases_lock(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'monitor.instance.lock'
+            program = ('import sys,time; from pathlib import Path; '
+                       'from monitor import MonitorInstance; '
+                       'lock=MonitorInstance(Path(sys.argv[1])); lock.__enter__(); '
+                       'print("LOCKED",flush=True); time.sleep(60)')
+            child = subprocess.Popen([sys.executable, '-u', '-c', program, str(path)],
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                self.assertEqual('LOCKED', child.stdout.readline().strip())
+                with self.assertRaisesRegex(RuntimeError, 'MONITOR_ALREADY_RUNNING'):
+                    with monitor.MonitorInstance(path):
+                        self.fail('Concurrent writer admitted')
+            finally:
+                child.kill()
+                child.communicate(timeout=10)
+            with monitor.MonitorInstance(path):
+                self.assertTrue(path.exists())
+
+    def test_lock_prevents_startup_side_effects(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with monitor.MonitorInstance(root / 'data' / 'monitor.instance.lock'):
+                with patch.object(monitor, 'ROOT', root), patch.object(monitor, '_main') as startup, patch.object(sys, 'argv', ['monitor.py']):
+                    with self.assertRaisesRegex(RuntimeError, 'MONITOR_ALREADY_RUNNING'):
+                        monitor.main()
+                    startup.assert_not_called()
+
+    def test_config_check_does_not_require_server_lock(self):
+        with patch.object(sys, 'argv', ['monitor.py', '--check-config']), patch.object(monitor, '_main') as startup, patch.object(monitor, 'MonitorInstance') as lock:
+            monitor.main()
+            startup.assert_called_once()
+            lock.assert_not_called()
 
 
 class MonitorRecoveryBackupTests(unittest.TestCase):

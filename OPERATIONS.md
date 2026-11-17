@@ -89,4 +89,6 @@ python start.py --bind 192.0.2.15 --tls-cert certs/panel-chain.pem --tls-key cer
 
 ## Doğrulama kapsamı
 
+Sunucu aynı kurulum klasörü için `data/monitor.instance.lock` üzerinde işletim sistemi kilidi tutar. İkinci sunucu süreci, ağ ayarlarına veya veritabanına dokunmadan `MONITOR_ALREADY_RUNNING` hatasıyla durur. Süreç kapandığında veya çöktüğünde kilit işletim sistemi tarafından bırakılır; dosyanın diskte kalması normaldir ve dosya silinmemelidir. `--check-config` çalışan sunucuyu etkilemeden kullanılabilir. Koruma yalnızca bu sürümü çalıştıran süreçler arasında geçerlidir; eski sürümden geçişte mevcut sunucu süreçlerinin kontrollü durdurulması gerekir.
+
 Python birim/HTTP testleri giriş, çıkış, yetki, kilitleme, API koruması, partial FortiGate yanıtı ve AD/oturum eşleştirmesini kapsar. Windows PowerShell sözdizimi doğrulandı; WTS betiği geliştirme bilgisayarında yerel olarak bir oturum okuyabildi. Gerçek FortiOS 7.4.13 CPU/RAM/envanter, AD/DHCP/DNS modülleri, uzak WTS/RPC ve hedef Windows Server 2012 R2 üzerindeki yeni sürüm için pilot doğrulama hâlâ gerekir. Var olmayan veri üretilmez.

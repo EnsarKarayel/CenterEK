@@ -94,7 +94,7 @@ jobs:
   package:
     name: Package and HTTPS smoke test
     needs: [verify, infrastructure]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'EnsarKarayel/CenterEK'
+    if: github.repository == 'EnsarKarayel/CenterEK'
     runs-on: windows-2022
     timeout-minutes: 25
     outputs:
@@ -130,6 +130,7 @@ jobs:
         with:
           name: centerek-windows-${{ github.sha }}
           path: |
+            ${{ env.RELEASE_DIR }}/*.exe
             ${{ env.RELEASE_DIR }}/*.zip
             ${{ env.RELEASE_DIR }}/*.sha256
             ${{ env.RELEASE_DIR }}/*manifest.json

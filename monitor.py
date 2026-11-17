@@ -517,7 +517,48 @@ def handler(store, config, auth, registry=None):
     return Handler
 
 
+class MonitorInstance:
+    """Hold an OS lock for this installation; never unlink a held lock file."""
+
+    def __init__(self, path):
+        self.path = Path(path)
+        self.file = None
+
+    def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.file = self.path.open('a+b')
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                self.file.seek(0, os.SEEK_END)
+                if not self.file.tell():
+                    self.file.write(b'\0')
+                    self.file.flush()
+                self.file.seek(0)
+                msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            self.file.close()
+            self.file = None
+            raise RuntimeError('MONITOR_ALREADY_RUNNING: Bu CenterEK kurulumu zaten çalışıyor.') from None
+        return self
+
+    def __exit__(self, *exc):
+        # Closing releases the OS lock, including after process termination.
+        self.file.close()
+        self.file = None
+
+
 def main():
+    if '--check-config' in sys.argv:
+        return _main()
+    with MonitorInstance(ROOT / 'data' / 'monitor.instance.lock'):
+        return _main()
+
+
+def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default=str(ROOT / 'config.local.json'))
     parser.add_argument('--port', type=int)

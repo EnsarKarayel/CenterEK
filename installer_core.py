@@ -14,7 +14,7 @@ import subprocess
 import time
 import urllib.request
 
-VERSION = '0.6.1-preview'
+VERSION = '0.7.0-preview'
 SCRIPTS = ('Install-SystemTask.ps1', 'Run-SystemTask.ps1', 'Collect-EndpointSessions.ps1',
            'Export-DirectoryInventory.ps1', 'Send-DirectoryInventory.ps1', 'Send-Report.ps1', 'Setup-Network.ps1', 'Detect-Networks.ps1')
 
@@ -124,9 +124,11 @@ def install(options, executable, assets, progress=lambda message: None):
             html.write_text(html.read_text(encoding='utf-8').replace('lang="tr"','lang="'+options.language+'"'),encoding='utf-8')
         for name in SCRIPTS:
             shutil.copy2(assets / name, target / name)
-        for name in ('INSTALLATION.md', 'THIRD-PARTY.txt'):
+        for name in ('INSTALLATION.md', 'REMOTE-ACCESS.md', 'THIRD-PARTY.txt'):
             if (assets / name).is_file():
                 shutil.copy2(assets / name, target / name)
+        if (assets / 'licenses').is_dir():
+            shutil.copytree(assets / 'licenses', target / 'licenses')
         from file_security import restrict
         restrict(target, directory=True)
         step('Creating local administrator and database')

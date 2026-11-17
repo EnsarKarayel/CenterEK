@@ -58,13 +58,27 @@ def main():
                                   root_dir=output / 'dist', base_dir='CenterEK-Setup')
     path = Path(archive)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    bootstrap_payload = output / 'bootstrap-payload'
+    bootstrap_payload.mkdir()
+    shutil.copy2(path, bootstrap_payload / 'installer-payload.zip')
+    setup_name = 'CenterEK-Setup-' + installer_core.VERSION + '-win-x64'
+    subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile',
+                    '--windowed', '--uac-admin', '--noupx', '--name', setup_name,
+                    '--distpath', str(output), '--workpath', str(output / 'bootstrap-build'),
+                    '--specpath', str(output), '--add-data', str(bootstrap_payload) + os.pathsep + '.',
+                    str(root / 'setup_bootstrap.py')], check=True, cwd=root)
+    setup = output / (setup_name + '.exe')
+    setup_digest = hashlib.sha256(setup.read_bytes()).hexdigest()
+    setup.with_suffix('.exe.sha256').write_text(setup_digest + '  ' + setup.name + '\n', encoding='utf-8')
     manifest = {'version': installer_core.VERSION, 'runtime': platform.python_version(), 'architecture': 'x64',
                 'signed': False, 'sha256': digest, 'bytes': path.stat().st_size, 'dependencies': dependencies,
-                'archive': path.name, 'customer_installation_test': 'pending'}
+                'archive': path.name, 'setup': setup.name, 'setup_sha256': setup_digest,
+                'setup_bytes': setup.stat().st_size, 'customer_installation_test': 'pending'}
     (output / 'release-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     path.with_suffix('.zip.sha256').write_text(digest + '  ' + path.name + '\n', encoding='utf-8')
     print('ARCHIVE=' + str(path), flush=True)
     print('BUNDLE=' + str(bundle), flush=True)
+    print('SETUP=' + str(setup), flush=True)
 
 
 if __name__ == '__main__':
