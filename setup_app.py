@@ -14,6 +14,120 @@ def assets_root():
     return Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 
 
+def maintenance_window(initial_root=None, check_report=None):
+    import tkinter as tk
+    from tkinter import ttk, messagebox, filedialog
+    import maintenance
+    import installer_core
+    window = tk.Tk()
+    window.title('CenterEK · Yükseltme / Geri alma / Kaldırma')
+    window.geometry('740x400')
+    folder = tk.StringVar(value=str(initial_root or Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'CenterEK'))
+    frame = ttk.Frame(window, padding=24)
+    frame.pack(fill='both', expand=True)
+    ttk.Label(frame, text='Mevcut CenterEK kurulum klasörü').pack(anchor='w')
+    ttk.Entry(frame, textvariable=folder, width=85).pack(fill='x', pady=8)
+    ttk.Button(frame, text='Klasör seç', command=lambda: folder.set(filedialog.askdirectory() or folder.get())).pack(anchor='w')
+    ttk.Label(frame, text='Yükseltme ayarları ve hesapları korur. Kaldırma müşteri verilerini silmez.\nGeri alma, veritabanını da seçilen yedek tarihine döndürür.', wraplength=680).pack(anchor='w', pady=16)
+    status = tk.StringVar(value='Hazır · Paket sürümü: ' + installer_core.VERSION)
+    ttk.Label(frame, textvariable=status, wraplength=680).pack(anchor='w', pady=12)
+    events = queue.Queue()
+    state = {'busy': False}
+    buttons = []
+    def run(action):
+        if state['busy']:
+            return
+        try:
+            if action == 'recover':
+                root = Path(folder.get())
+                record = {}
+            else:
+                root, record = maintenance.validate_root(folder.get(), allow_uninstalled=action == 'restore_uninstalled')
+            detail = {'upgrade': 'Ayarlar korunarak ' + record.get('version', '') + ' → ' + installer_core.VERSION + ' yükseltmesi yapılsın mı?',
+                      'rollback': 'Yedek tarihinden sonraki ölçümler ve ayar değişiklikleri geri alınacak. Mevcut durum ayrıca yedeklenecek. Devam edilsin mi?',
+                      'uninstall': 'CenterEK görevleri ve uygulama kaldırılacak. Veritabanı, ayarlar, sertifikalar ve korumalı yedek saklanacak. Devam edilsin mi?',
+                      'recover': 'Yarım kalan bakımın öncesindeki korumalı yedek geri yüklensin mi? Veritabanı da yedek tarihine dönebilir.',
+                      'restore_uninstalled': 'Kaldırılmadan önceki program, görevler ve veriler geri yüklensin mi? Saklanan klasörde sonradan yaptığınız değişiklikler yedekteki durumla değiştirilecek.'}[action]
+            if action == 'rollback':
+                snapshot = maintenance.latest_upgrade(root)
+                meta = maintenance.verify_snapshot(root, snapshot)
+                detail = 'Geri dönülecek sürüm: ' + meta['version'] + '\nYedek: ' + meta['created_at'] + '\n\n' + detail
+            if not messagebox.askyesno('CenterEK bakım', detail):
+                return
+        except Exception as error:
+            messagebox.showerror('CenterEK', str(error))
+            return
+        state['busy'] = True
+        for button in buttons:
+            button.configure(state='disabled')
+        def worker():
+            try:
+                progress = lambda text: events.put(('progress', text))
+                if action == 'upgrade':
+                    result = maintenance.upgrade(root, sys.executable, assets_root(), progress)
+                else:
+                    result = getattr(maintenance, action)(root, progress)
+                events.put(('done', 'İşlem tamamlandı. Korumalı yedek: ' + result))
+            except Exception as error:
+                events.put(('error', str(error)))
+        threading.Thread(target=worker, daemon=True).start()
+    row = ttk.Frame(frame)
+    row.pack(anchor='w', pady=12)
+    for index, (action, label) in enumerate([('upgrade', 'Yükselt'), ('rollback', 'Geri al'), ('recover', 'Yarım kalanı kurtar'), ('uninstall', 'Kaldır · verileri sakla'), ('restore_uninstalled', 'Kaldırılanı geri kur')]):
+        button = ttk.Button(row, text=label, command=lambda value=action: run(value))
+        button.grid(row=index // 3, column=index % 3, padx=4, pady=4, sticky='ew')
+        buttons.append(button)
+    def poll():
+        try:
+            while True:
+                kind, text = events.get_nowait()
+                status.set(text)
+                if kind != 'progress':
+                    state['busy'] = False
+                    if kind == 'error':
+                        messagebox.showerror('CenterEK', text)
+                    # Reload setup after a successful change; prevent accidental repeats.
+                    else:
+                        messagebox.showinfo('CenterEK', text)
+                    if kind == 'error':
+                        for button in buttons:
+                            button.configure(state='normal')
+        except queue.Empty:
+            pass
+        window.after(150, poll)
+    window.protocol('WM_DELETE_WINDOW', lambda: None if state['busy'] else window.destroy())
+    if check_report:
+        for button in buttons:
+            button.configure(state='disabled')
+        def check_ui():
+            window.update_idletasks()
+            visible = all(button.winfo_ismapped() and button.winfo_rootx() + button.winfo_width() <= window.winfo_rootx() + window.winfo_width()
+                          and button.winfo_rooty() + button.winfo_height() <= window.winfo_rooty() + window.winfo_height() for button in buttons)
+            result = {'ok': len(buttons) == 5 and visible,
+                      'maintenance_actions': 5, 'destructive_actions_disabled': all(button.instate(['disabled']) for button in buttons),
+                      'visual_acceptance': 'pending'}
+            Path(check_report).write_text(json.dumps(result, indent=2), encoding='utf-8')
+            window.destroy()
+        window.after(600, check_ui)
+    poll()
+    window.mainloop()
+
+
+def stage_maintenance(root):
+    """Leave the installed executable before replacing/removing its runtime."""
+    import shutil
+    import subprocess
+    import tempfile
+    from file_security import restrict
+    stage = Path(tempfile.mkdtemp(prefix='CenterEK-Maintenance-'))
+    restrict(stage, directory=True)
+    source = Path(sys.executable)
+    shutil.copy2(source, stage / 'CenterEK.exe')
+    shutil.copytree(source.parent / '_internal', stage / '_internal')
+    subprocess.Popen([str(stage / 'CenterEK.exe'), '--maintenance', '--root', str(root)],
+                     cwd=stage, creationflags=subprocess.CREATE_NO_WINDOW)
+
+
 def serve(root, remaining):
     import monitor
     monitor.ROOT = Path(root).resolve()
@@ -152,6 +266,8 @@ def wizard(preview=False, check_report=None):
     open_button.pack(side='left', padx=8)
     install_button = ttk.Button(actions)
     install_button.pack(side='left')
+    manage_button = ttk.Button(actions, text='Yükselt / Geri al / Kaldır', command=lambda: (root.destroy(), maintenance_window(values['target'].get())))
+    manage_button.pack(side='right')
     state = {'busy': False, 'url': None}
     events = queue.Queue()
     def translate(*_):
@@ -179,7 +295,7 @@ def wizard(preview=False, check_report=None):
             if not getattr(sys, 'frozen', False): raise ValueError('Use the built installer package, not the source entry point.')
         except Exception as error:
             messagebox.showerror(words[0], str(error));return
-        state['busy']=True;install_button.configure(state='disabled');progress_bar.start(12)
+        state['busy']=True;install_button.configure(state='disabled');manage_button.configure(state='disabled');progress_bar.start(12)
         values['password'].set('');values['repeat'].set('')
         def worker():
             try:
@@ -198,6 +314,7 @@ def wizard(preview=False, check_report=None):
                 if kind=='progress':append(value)
                 else:
                     state['busy']=False;progress_bar.stop()
+                    manage_button.configure(state='normal')
                     if kind=='done':
                         state['url']=value;open_button.configure(state='normal');append(WORDS[language.get()][18]+'\n'+value)
                     else:
@@ -229,9 +346,29 @@ def main():
     parser.add_argument('--self-test',action='store_true');parser.add_argument('--report')
     parser.add_argument('--preview-wizard',action='store_true')
     parser.add_argument('--check-wizard',action='store_true')
+    parser.add_argument('--manage', action='store_true')
+    parser.add_argument('--maintenance', action='store_true')
+    parser.add_argument('--check-maintenance', action='store_true')
     parser.add_argument('--unattended-install', help='Protected JSON options file; Azure VM provisioning only')
     parser.add_argument('--site-register', help='OS-admin-only site enrollment options; encrypted output only')
     args,remaining=parser.parse_known_args()
+    if args.manage or args.maintenance:
+        if not getattr(sys, 'frozen', False) or os.name != 'nt':
+            parser.error('Use the packaged Windows setup')
+        import ctypes
+        if not ctypes.windll.shell32.IsUserAnAdmin():
+            import subprocess
+            result = ctypes.windll.shell32.ShellExecuteW(None, 'runas', sys.executable, subprocess.list2cmdline(sys.argv[1:]), str(Path(sys.executable).parent), 1)
+            if result <= 32:
+                raise SystemExit('Administrator permission required')
+            return
+        if args.manage:
+            stage_maintenance(Path(sys.executable).parent)
+        else:
+            if not args.root:
+                parser.error('--root required')
+            maintenance_window(args.root)
+        return
     if args.site_register:
         if not args.root or not args.report:
             parser.error('--root and --report required')
@@ -242,6 +379,9 @@ def main():
         if not args.report or not getattr(sys, 'frozen', False):
             parser.error('Packaged installer and --report required')
         raise SystemExit(unattended_install(args.unattended_install, args.report))
+    elif args.check_maintenance:
+        if not args.report:parser.error('--report required')
+        maintenance_window(check_report=args.report)
     elif args.check_wizard:
         if not args.report:parser.error('--report required')
         wizard(preview=True,check_report=args.report)

@@ -4,7 +4,7 @@ Bu paket başka bir temiz Windows bilgisayarda kurulum denemesi içindir. Ticari
 
 ## Başlatma
 
-1. `CenterEK-Setup-0.7.0-preview-win-x64.exe` dosyasını indirin. Tek dosya kurulum paketi kendi çalışma zamanını geçici klasöre açar; Python veya ZIP çıkarma işlemi gerekmez.
+1. `CenterEK-Setup-0.8.0-preview-win-x64.exe` dosyasını indirin. Tek dosya kurulum paketi kendi çalışma zamanını geçici klasöre açar; Python veya ZIP çıkarma işlemi gerekmez.
 2. Dosyayı çift tıklayarak açın. Windows yönetici izni gerekir. Alternatif ZIP paketini kullanıyorsanız tamamını bir klasöre çıkarıp içindeki `CenterEK-Setup.exe` dosyasını çalıştırın; `_internal` klasörünü ayırmayın.
 3. Dil, boş bir hedef klasör, ilk yönetici kullanıcı/parolası ve portu girin.
 4. Varsayılan “yalnızca bu bilgisayar” modudur. LAN istenirse bu bilgisayara ait özel IPv4 adresini ve isteğe bağlı firewall iznini seçin.
@@ -38,7 +38,7 @@ Bu paket başka bir temiz Windows bilgisayarda kurulum denemesi içindir. Ticari
 
 Bu kurulum paketi imzasızdır; güvenlik uyarıları/kurum politikaları oluşabilir. Güvenlik ürünlerini kapatmayın. Kod imzalama ve temiz makine/yeniden başlatma kabulü tamamlanmadan ticari yayın yapılmamalıdır. EXE/ZIP hash dosyaları iletim bütünlüğünü kontrol eder, yayıncı kimliği doğrulaması değildir.
 
-Önizleme yalnızca boş hedef klasöre kurulur. Mevcut CenterEK kurulumu, veritabanı ve sertifikaları üzerine yükseltme yapmaz. Tam yükseltme/geri alma ve kaldırma sihirbazı henüz tamamlanmadı. Hata durumunda tanı için kurulum klasörü korunur; kurulum bazı görevleri/sertifika güvenini oluşturmuş olabilir. Hata ekranından sonra tekrar denemeden önce günlükleri inceleyin. Paket mevcut uygulama klasörü/C sürücüsü kökü/Windows klasörü üzerine kurulmaz.
+Yeni kurulum yalnızca boş hedef klasöre yapılır. Mevcut paket kurulumları için **Yükselt / Geri al / Kaldır** ekranını kullanın; yedekli bakım ve kesinti kurtarma ayrıntıları MAINTENANCE.md içindedir. Kaynak koddan çalışan eski ofis kurulumu otomatik yükseltilmez. Yeni kurulum hatasında tanı için klasör korunur; bazı görevler/sertifika güveni oluşturulmuş olabilir. Tekrar denemeden önce günlükleri inceleyin. Paket C sürücüsü kökü/Windows klasörü üzerine kurulmaz.
 
 Sunucu için başlangıçta yalnızca bu makinenin erişim hedefi eklenir. Diğer sunucular, switchler, firewall ve AP'ler panelin Kurulum / Bağlantılar bölümünden tanımlanır. Otomatik AP keşfi, disk seri/WWN ve fiziksel RAID sağlığı bu paketle eklenmiş sayılmaz.
 # Sonradan uzaktan erişim

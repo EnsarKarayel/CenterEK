@@ -53,6 +53,8 @@ jobs:
           New-Item -ItemType Directory data -Force | Out-Null
           python -m unittest discover -s tests -v
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -File tests/Test-Maintenance.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: UI and language behavior
         run: |
           foreach ($file in Get-ChildItem web/*.js) {
@@ -124,6 +126,11 @@ jobs:
           if ($process.ExitCode -or -not (Get-Content $report -Raw|ConvertFrom-Json).ok) { throw 'Packaged self-test failed' }
           python tests/smoke_frozen.py --bundle "$env:RELEASE_DIR/dist/CenterEK-Setup" --report "$env:RELEASE_DIR/smoke-report.json"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/smoke_maintenance_frozen.py --bundle "$env:RELEASE_DIR/dist/CenterEK-Setup" --report "$env:RELEASE_DIR/maintenance-report.json"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $report=Join-Path $env:RELEASE_DIR 'maintenance-ui-report.json'
+          $process=Start-Process $exe -ArgumentList @('--check-maintenance','--report',('"'+$report+'"')) -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -or -not (Get-Content $report -Raw|ConvertFrom-Json).ok) { throw 'Maintenance UI check failed' }
           python scripts/ci/check_archive.py "$env:RELEASE_DIR"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

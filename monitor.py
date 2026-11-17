@@ -25,6 +25,7 @@ import device_settings
 import collector_settings
 import network_settings
 import os
+import hashlib
 import site_relay
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -554,6 +555,10 @@ class MonitorInstance:
 def main():
     if '--check-config' in sys.argv:
         return _main()
+    identity = hashlib.sha256(str(ROOT.resolve()).casefold().encode()).hexdigest()[:24]
+    journal = Path(os.environ.get('ProgramData', str(ROOT.parent))) / 'CenterEK-Maintenance' / identity / 'active.json'
+    if journal.exists() and json.loads(journal.read_text(encoding='utf-8')).get('phase') != 'starting':
+        raise RuntimeError('MAINTENANCE_IN_PROGRESS: Bakım veya kurtarma tamamlanmadan sunucu başlatılamaz.')
     with MonitorInstance(ROOT / 'data' / 'monitor.instance.lock'):
         return _main()
 
