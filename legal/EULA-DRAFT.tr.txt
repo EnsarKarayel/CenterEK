@@ -4,7 +4,10 @@ CenterEK Son Kullanıcı Lisans Sözleşmesi — inceleme taslağı
 
 Satıcı: {{SELLER}} — {{COUNTRY}}
 Destek iletişimi: {{SUPPORT_EMAIL}}
-Satıcının adresi, ticari/vergi bilgileri ve destek kapsamı satış belgesinde tamamlanacaktır.
+Adres bölgesi: {{ADDRESS_LOCALITY}} — tam tebligat adresi satış belgesinde tamamlanacaktır.
+Satıcının rolü: {{SELLER_ROLE}}
+Hukuki satıcı statüsü: {{LEGAL_STATUS}}
+Ticari/vergi bilgileri satış belgesinde tamamlanacaktır.
 Sözleşme sürümü/tarihi: [ONAYLANACAK]
 
 1. Kapsam
@@ -15,6 +18,9 @@ Abonelik başlangıç ve bitiş tarihleri satış belgesinde ve imzalı lisans d
 
 3. Yenileme ve ticari şartlar
 Ücret, vergiler, ödeme, iptal/iade, yenileme yöntemi, destek saatleri ve güncelleme kapsamı satıcı tarafından satış belgesinde ayrıca kesinleştirilecektir. Bu taslak otomatik tahsilat veya otomatik yenileme yetkisi vermez.
+
+Destek kapsamı taslağı: {{SUPPORT_SCOPE}}
+Bu kapsam satış öncesinde açıkça bildirilip kesinleştirilmelidir; emredici mevzuattan doğan yükümlülüklerin kaldırıldığı anlamına gelmez.
 
 4. Müşteri verileri ve erişim
 AD kullanıcıları, açık oturumlar, IP/MAC adresleri ve ölçümler müşteri ortamında kişisel veya kurumsal veri içerebilir. Müşteri izleme yetkilerini, bilgilendirmeyi, hesapları ve saklama politikasını belirler. Lisans doğrulaması çevrimdışıdır; lisans kontrolü için otomatik dış veri aktarımı yapılmaz. Uzaktan erişim ve Azure aktarımı ayrıca yapılandırılan özelliklerdir; veri işleme ve barındırma koşulları ayrıca belirlenmelidir.

@@ -13,6 +13,7 @@ Ayrı temiz misafirde gerçek 0.9.1 → 0.9.2 yükseltme ve 0.9.2 → 0.9.1 geri
 ## Tamamlanan teknik hazırlık
 
 - Ürün sahibi profili: Ensar Karayel, Türkiye, karayelensar@gmail.com. Tek kaynak `legal/publisher.json`; kimlik bilgisi ürün sahibi tarafından verilmiştir, sertifika otoritesi doğrulaması değildir.
+- Kullanıcının ek bilgileri: Keçiören, Ankara; rolü kurucu. Bireysel/şirket statüsü ve tam tebligat adresi henüz kesinleşmedi. Destek taslağı müşteri tarafından kurulum, e-posta üzerinden kurulum/ekran sorularının değerlendirilmesi ve ileride açılırsa ticket kanalıdır; uzun vadeli yönetim veya SLA taahhüdü verilmedi. Bu bilgiler nihai sözleşme onayı değildir.
 - Yıllık, kurulum kimliğine bağlı imzalı abonelik; süre sonunda ölçüm/keşif/ajan alımını durdurma; geçmiş/CSV erişimini koruma; panelden yenileme.
 - Gerçek paketli uygulamada geçici QA anahtarıyla doğal süre bitişi, geçmişe erişim ve aynı süreçte yenileme doğrulandı. Bu test temiz Windows kabulü değildir; QA paketi satış kontrolünden geçemez.
 - Nihai sözleşmeyi gösterme, açık kabul ve kabul edilen metnin SHA256/tarih kaydı; yeni metinli yükseltmede yeniden kabul.

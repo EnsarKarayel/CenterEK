@@ -15,7 +15,12 @@ def main():
         raise ValueError('Seller, support email and annual subscription model required')
     root = Path(__file__).resolve().parents[2]
     text = (root / 'legal/EULA-DRAFT.tr.txt').read_text(encoding='utf-8')
-    for key, value in {'SELLER': profile['seller'], 'COUNTRY': profile.get('country_name', profile['country']), 'SUPPORT_EMAIL': profile['support_email']}.items():
+    fields = {'SELLER': profile['seller'], 'COUNTRY': profile.get('country_name', profile['country']),
+              'SUPPORT_EMAIL': profile['support_email'], 'ADDRESS_LOCALITY': profile.get('address_locality', '[ADRES BELİRLENECEK]'),
+              'SELLER_ROLE': profile.get('seller_role', '[ROL BELİRLENECEK]'),
+              'LEGAL_STATUS': profile.get('legal_status', '[HUKUKİ STATÜ BELİRLENECEK]'),
+              'SUPPORT_SCOPE': profile.get('support_scope', '[DESTEK KAPSAMI BELİRLENECEK]')}
+    for key, value in fields.items():
         text = text.replace('{{' + key + '}}', value)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(text, encoding='utf-8')
