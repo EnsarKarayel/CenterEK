@@ -28,6 +28,7 @@ import os
 import hashlib
 import licensing
 import site_relay
+import panel_app
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parent
@@ -423,6 +424,8 @@ def handler(store, config, auth, registry=None):
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(token)})
 
         def do_GET(self):
+            if panel_app.respond(self, ROOT / 'web'):
+                return
             if self.path == '/healthz':
                 try:
                     with store.lock:

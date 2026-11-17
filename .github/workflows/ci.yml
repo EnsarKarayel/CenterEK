@@ -65,6 +65,10 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node tests/test_i18n.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --check web/panel/panel.js
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/test_panel_worker.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Parse all PowerShell scripts without executing them
         shell: powershell
         run: ./scripts/ci/Test-PowerShell.ps1
@@ -145,6 +149,28 @@ jobs:
             ${{ env.RELEASE_DIR }}/*manifest.json
             ${{ env.RELEASE_DIR }}/*test.json
             ${{ env.RELEASE_DIR }}/*report.json
+          if-no-files-found: error
+          retention-days: 14
+
+  store-panel:
+    name: Prepare Store panel web assets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Export public assets without deployment or Store submission
+        run: python scripts/store/build_panel.py --output data/store-panel-ci --origin https://panel.example
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: centerek-store-panel-web-${{ github.sha }}
+          path: |
+            data/store-panel-ci/CenterEK-Panel-Web.zip
+            data/store-panel-ci/preparation-report.json
           if-no-files-found: error
           retention-days: 14
 

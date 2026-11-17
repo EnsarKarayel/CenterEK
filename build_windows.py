@@ -56,6 +56,7 @@ def main():
     (payload / 'web').mkdir()
     for name in web_files:
         shutil.copy2(root / 'web' / name, payload / 'web' / name)
+    shutil.copytree(root / 'web/panel', payload / 'web/panel')
     for name in installer_core.SCRIPTS:
         (payload / name).write_text((root / name).read_text(encoding='utf-8-sig'), encoding='utf-8-sig')
     shutil.copy2(root / 'INSTALLATION.md', payload / 'INSTALLATION.md')
