@@ -24,6 +24,26 @@ Ayrı temiz misafirde gerçek 0.9.1 → 0.9.2 yükseltme ve 0.9.2 → 0.9.1 geri
 
 ## Bekleyen somut adımlar
 
+### Microsoft Store ücretsiz imzalama incelemesi — 17 Kasım 2026
+
+Sonuç: Mevcut CenterEK sunucu + ajan setup'ı için doğrudan ve onayı garantili bir ücretsiz Store/MSIX dönüşümü bulunmadı. Bu bir Microsoft ret kararı değil, mevcut kod ile yayımlanmış gereksinimlerin mühendislik karşılaştırmasıdır. Paket hazırlanıp Store'a gönderilmedi; hesap veya ücretli hizmet açılmadı.
+
+| Mevcut uygulama davranışı | Kod kanıtı | Store/MSIX etkisi |
+| --- | --- | --- |
+| Dış setup yönetici izni ister | `build_windows.py`, `--uac-admin` | Standart kullanıcıyla çalışan Store istemcisinden farklı; yükseltme izni kısıtlı yetenek onayına bağlı olabilir. |
+| Sunucu ve ajan SYSTEM olarak açılışta/oturum kapalıyken çalışır | `Install-SystemTask.ps1`, `New-ScheduledTaskPrincipal -UserId SYSTEM` | Mevcut zamanlanmış görevler MSIX servis bildirimi değildir. Windows servislerine dönüşüm yeni geliştirme gerektirir; paketli LocalSystem servisleri için iki kısıtlı yetenek gerekir. |
+| Makine kök sertifika deposuna panel CA'sı eklenir; isteğe bağlı LAN firewall kuralı oluşturulur | `installer_core.py`, `certutil -addstore Root`, `Setup-Network.ps1` çağrısı | Sadece EXE'yi MSIX içine koymak bu yönetici işlemlerini Store'a uygun hale getirmez. |
+| Program/veri kurulum kökünde tutulur; bakım eski program ve verileri geri koyar | `installer_core.py`, `maintenance.py` | MSIX'in paket dosyaları ve yaşam döngüsüne göre veri dizinleri ile güncelleme/geri alma yeniden tasarlanmalı. |
+| AD ve diğer cihazlardan veri toplamak ayrı yetkili ajanlara bağlıdır | `Install-SystemTask.ps1`, `installer_core.py` | Store'daki panel istemcisinin imzası, harici sunucu/ajan EXE'lerini imzalamaz. |
+
+[Microsoft imzalama rehberine](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options) göre ücretsiz imzalama, sertifikasyondan geçen Store MSIX paketi içindir. Store'a mevcut MSI/EXE yükleyicisini sunmak sertifika ihtiyacını kaldırmaz. [Yetenek rehberi](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/app-capability-declarations), `allowElevation` için sıkı onay ölçütleri belirtir; `packagedServices` ve `localSystemServices` için çoğu Store başvurusunun onaylanmadığını açıklar. MSIX servis desteği ile Store kabulü aynı şey değildir. Eski genel paketleme rehberindeki geniş yükseltme yasağı yerine bu daha ayrıntılı yetenek/onay ayrımı esas alınmıştır.
+
+Uygulanabilir aday: Azure'daki veya müşterinin HTTPS paneline bağlanan ayrı bir **CenterEK panel istemcisi/PWA**. Bu istemci standart kullanıcıyla çalışır; yerel sunucu/ajan kurmaz ve yönetici işlemi yapmaz. [Microsoft'un PWA dağıtım yolu](https://learn.microsoft.com/en-us/microsoft-edge/progressive-web-apps/how-to/microsoft-store) buna yönelik paketleme akışını açıklar. Mevcut web arayüzünde web app manifesti, PWA simgeleri ve service worker bulunmadığından hazır Store paketi olduğu söylenemez. Oturum/kişisel veri yanıtları çevrimdışı önbelleğe alınmamalı; Azure Entra ve CenterEK girişleri ayrıca test edilmeli.
+
+Bu adayın sonraki işleri: PWA manifest/simgeler ve uygun çevrimdışı hata ekranı, HTTPS erişimi ve oturum testleri, gizlilik ve destek sayfaları, Partner Center ürün kimliği, üretim verisi içermeyen inceleme ortamı/hesabı, Windows paketleme ve sertifikasyon. [Store politikaları](https://learn.microsoft.com/en-us/windows/apps/publish/store-policies) 10.2.4 bağımlılıkların açıklanmasını, 10.3 çalışan sunucu/demo erişimini ve 10.5 gizlilik koşullarını gerektirir. Yalnızca sahibinin hesabına açık mevcut staging, genel ürün incelemesi için hazırlanmış sayılmaz. Store istemcisi tek başına müşterinin bütün bilgisayarlarını izlemeye başlamaz; sunucu/ajanlar ayrıca kurulur. Tam yerel ürünü ücretsiz imzalanmış saymak veya mevcut satış denetimini bu gerekçeyle geçersiz kılmak doğru değildir.
+
+Karar noktası: Müşterinin tüm sunucu/ajan altyapısını tek setup ile kurması hedefi korunuyorsa mevcut bağımsız yükleyici geliştirmesi sürer ve güvenilir imza konusu açık kalır. Ayrı Store panel istemcisi, ürün sahibinin bu kapsamı seçmesi durumunda bağımsız kanal olarak geliştirilebilir. Sertifika satın alma kararı bu değerlendirmeyle otomatik verilmedi.
+
 1. **Manuel yeniden başlatma tamamlandı:** Ürün sahibi yeniden başlattığını bildirdi ve Sandbox çalıştırılarak doğrulandı. Agent otomatik yeniden başlatma yapmadı.
 2. **Temiz Windows kabulünün kalan kapsamı:** Temel kurulum/kaldırma/geri kurma yukarıdaki raporla geçti. Kalıcı yeniden başlatma, dış setup/UAC, imzalı ticari paket ve Server kabulü ayrıca tamamlanmalıdır. Sandbox kapanınca silinir; Azure'daki mevcut sunucu test için silinmez.
 3. **Güvenilir kod imzalama sertifikası:** Makinede henüz yok; satın alma veya kimlik doğrulaması yapılmadı. Türkiye için ticari CA yolu hazırlandı. Bireysel/şirket başvuru ve donanım/bulut anahtar seçeneği sağlayıcıyla teyit edilmelidir. Ücretli hizmet açılmadı.

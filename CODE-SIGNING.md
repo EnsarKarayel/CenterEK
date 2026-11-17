@@ -1,5 +1,7 @@
 # Üretim kod imzası
 
+Ücretsiz Store/MSIX alternatifi incelendi; sonuçlar `COMMERCIAL-STATUS.md` içindeki Microsoft Store bölümündedir. Microsoft'un ücretsiz imzalaması Store MSIX paketi için geçerlidir; mevcut EXE sunucu/ajan yükleyicisine aktarılmaz. Ayrı panel istemcisi adayı vardır; mevcut yönetici/SYSTEM kurulumunun Store'a kabulü veya ücret gerektirmeden eşdeğer dağıtımı doğrulanmadı. Aşağıdaki CA edinme yolu bir satın alma talimatı ya da verilmiş satın alma kararı değildir.
+
 Mevcut makine sertifika depolarında kullanılabilir kod imzalama sertifikası ve PATH üzerinde SignTool bulunamadı. Panelin yerel HTTPS CA'sı kod imzalama sertifikası değildir. Kendi kendine imzalı test sertifikası müşteri dağıtımı için güvenilir yayıncı kimliği olarak kullanılmaz.
 
 ## Sertifika edinme yolu
