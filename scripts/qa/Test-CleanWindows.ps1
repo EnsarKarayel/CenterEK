@@ -1,6 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$Bundle,
       [Parameter(Mandatory=$true)][string]$ReportFolder,
       [string]$PreviousBundle,
+      [string]$SetupPath,
       [switch]$ConfirmIsolatedMachine)
 $ErrorActionPreference='Stop'
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
@@ -25,6 +26,7 @@ if($PreviousBundle){
 }
 New-Item -ItemType Directory -Path $ReportFolder -Force|Out-Null
 $result=[ordered]@{kind='isolated-windows';python_absent=$true;os=(Get-CimInstance Win32_OperatingSystem).Caption;build=[Environment]::OSVersion.Version.ToString();bundle_exe_sha256=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLower();steps=[ordered]@{};ok=$false;reboot_test='pending';uac_interaction='pending';outer_setup_ui='pending'}
+if($SetupPath){$result.setup_sha256=(Get-FileHash -LiteralPath $SetupPath -Algorithm SHA256).Hash.ToLower()}
 if($PreviousBundle){$result.kind='isolated-windows-preview-lifecycle';$result.current_exe_sha256=(Get-FileHash -LiteralPath $currentExe -Algorithm SHA256).Hash.ToLower()}
 function Save-Progress([string]$Stage){
     $result.stage=$Stage

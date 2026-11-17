@@ -27,3 +27,7 @@ python scripts/release/check_commercial.py data/releases/RELEASE --acceptance C:
 ```
 
 Onay JSON'u satıcının `approved:true`, `seller`, `country`, `support_email`, `publisher_thumbprint`, `approved_eula_sha256`, `third_party_review_sha256` kararını kaydeder. Son alan gözden geçirilen üçüncü taraf bileşen envanterini bağlar. Kabul raporundaki `reboot_test`, `uac_interaction`, `outer_setup_ui` alanları yalnızca gerçekten doğrulanınca `passed` olmalıdır. Otomatik rapor `pending` üretir.
+
+Kabul kaydı dış setup'ın `setup_sha256` değerini de içermelidir. Sandbox üreticisi bu dosyayı misafire salt okunur taşır; test betiği `-SetupPath` ile özetini kaydeder. Dosyanın orada bulunması dış setup/UAC testinin geçtiği anlamına gelmez; bu alanlar doğrulanana kadar `pending` kalır. Eski raporlar bu yeni alan için geriye dönük başarılı sayılmaz.
+
+Yayın denetimi ZIP ve dış setup özetlerini yeniden hesaplar; açılmış paketteki her dosyanın ZIP içeriğiyle birebir aynı olduğunu, fazladan dosya bulunmadığını ve kabul raporunun iç EXE'sini kontrol eder. Paket içindeki sözleşme/üçüncü taraf envanteri ve satıcı profili de onay kaydıyla eşleşmelidir. Paket veya belgeler değiştiğinde eski kabul kaydı kullanılamaz.

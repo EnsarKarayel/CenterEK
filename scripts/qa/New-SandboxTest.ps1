@@ -18,6 +18,7 @@ if($manifest.setup){
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Test-CleanWindows.ps1') -Destination $payload
 $guestArguments='-NoProfile -ExecutionPolicy RemoteSigned -File C:\CenterEK-Payload\Test-CleanWindows.ps1 -Bundle C:\CenterEK-Payload\CenterEK-Setup -ReportFolder C:\CenterEK-Reports -ConfirmIsolatedMachine'
+if($manifest.setup){$guestArguments+=' -SetupPath "C:\CenterEK-Payload\'+$manifest.setup+'"'}
 if($PreviousReleaseFolder){
     $previous=(Resolve-Path -LiteralPath $PreviousReleaseFolder).Path
     $previousManifest=[IO.File]::ReadAllText((Join-Path $previous 'release-manifest.json'))|ConvertFrom-Json

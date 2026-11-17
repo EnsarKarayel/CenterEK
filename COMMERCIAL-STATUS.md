@@ -19,6 +19,7 @@ Ayrı temiz misafirde gerçek 0.9.1 → 0.9.2 yükseltme ve 0.9.2 → 0.9.1 geri
 - EXE ve PowerShell betiklerini sertifika sağlayıcısıyla imzalama/zaman damgası/doğrulama entegrasyonu. Gerçek üretim sertifikasıyla henüz çalıştırılmadı.
 - Temiz Windows/Sandbox test üreticisi ve gerçek görev/ajan/kaldırma/geri kurma betiği. Otomatik rapor UAC/dış setup/reboot alanlarını kendiliğinden başarılı yapmaz.
 - Ticari yayın kontrolü eksik şartlarda `sale_ready:false` üretir. CI'deki `--report-only` denetimi ön sürüm testlerinin geçmesine izin verir; yayın onayı değildir.
+- Yayın denetimi artık dış setup ve ZIP özetlerini, açılmış paketin tüm dosyalarını, paket içindeki sözleşme/üçüncü taraf envanteri ve satıcı profilini de doğrular. Değişen dış setup eski kabul kaydıyla onaylanmaz. Bu denetim çalışması mevcut 0.9.2 ikilisini veya önceki kabul kanıtını değiştirmez.
 
 ## Bekleyen somut adımlar
 
