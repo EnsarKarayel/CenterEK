@@ -59,7 +59,7 @@ class PanelAppTests(unittest.TestCase):
             self.assertFalse(report['store_ready'])
             self.assertFalse(report['msix_created'])
             files = list((output / 'public').rglob('*'))
-            self.assertEqual(sum(p.is_file() for p in files), len(panel_app.FILES))
+            self.assertEqual(sum(p.is_file() for p in files), len({name for name, _ in panel_app.FILES.values()}))
             self.assertFalse(any(p.suffix in ('.json', '.py', '.exe', '.ps1', '.sqlite3') for p in files))
             with self.assertRaises(FileExistsError):
                 builder.export(output, 'https://panel.example')

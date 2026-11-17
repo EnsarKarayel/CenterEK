@@ -3,6 +3,7 @@ from pathlib import Path
 
 FILES = {
     '/panel/': ('index.html', 'text/html; charset=utf-8'),
+    '/panel/index.html': ('index.html', 'text/html; charset=utf-8'),
     '/panel/manifest.webmanifest': ('manifest.webmanifest', 'application/manifest+json; charset=utf-8'),
     '/panel/panel.js': ('panel.js', 'text/javascript; charset=utf-8'),
     '/panel/panel.css': ('panel.css', 'text/css; charset=utf-8'),

@@ -26,6 +26,8 @@ Ayrı temiz misafirde gerçek 0.9.1 → 0.9.2 yükseltme ve 0.9.2 → 0.9.1 geri
 
 ### Microsoft Store ücretsiz imzalama incelemesi — 17 Kasım 2026
 
+Güncel yön: Kullanıcı Store kaydını bekletti ve tarayıcıdan yüklenebilir PWA'yı seçti. PWA Azure HTTPS geçidinde yayınlandı; manifest/yüklenebilirlik, gerçek offline/online tarayıcı testi ve anonim API koruması geçti. Ayrıntılar ve kullanıcı kurulum yolu `STORE-PANEL.md` içindedir. Bu istemci yayını bağımsız sunucu/ajan setup'ının ticari imza veya satış kabulü değildir. Aşağıdaki Store incelemesi geçmiş kararın kaydıdır.
+
 Ürün sahibi ayrı ücretsiz Store panel uygulaması geliştirilmesini, sunucu/ajanların mevcut setup'ta kalmasını seçti. İlk PWA kaynakları, sabit dosya sunumu, hassas veri önbelleklemeden offline ekranı ve web dağıtım çıktısı üreticisi hazırlandı. Detaylar `STORE-PANEL.md` içindedir. Bu durum Store'a gönderim, canlı Azure dağıtımı, MSIX üretimi veya Microsoft onayı değildir; tam sunucu ürününün satış engellerini kaldırmaz.
 
 Sonuç: Mevcut CenterEK sunucu + ajan setup'ı için doğrudan ve onayı garantili bir ücretsiz Store/MSIX dönüşümü bulunmadı. Bu bir Microsoft ret kararı değil, mevcut kod ile yayımlanmış gereksinimlerin mühendislik karşılaştırmasıdır. Paket hazırlanıp Store'a gönderilmedi; hesap veya ücretli hizmet açılmadı.
