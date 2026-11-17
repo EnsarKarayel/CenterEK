@@ -1,0 +1,31 @@
+TASLAK — TİCARİ KULLANIM İÇİN ONAYLANMAMIŞTIR
+
+CenterEK Son Kullanıcı Lisans Sözleşmesi — inceleme taslağı
+
+Satıcı: {{SELLER}} — {{COUNTRY}}
+Destek iletişimi: {{SUPPORT_EMAIL}}
+Satıcının adresi, ticari/vergi bilgileri ve destek kapsamı satış belgesinde tamamlanacaktır.
+Sözleşme sürümü/tarihi: [ONAYLANACAK]
+
+1. Kapsam
+CenterEK, müşterinin yönetmeye yetkili olduğu sistemlerde altyapı izleme ve raporlama için kullanılır. İlk satış kapsamı müşteri başına ayrı yerel kurulumdur. Paylaşımlı çok müşterili barındırma bu taslağa dahil değildir. Lisans, satın alma belgesinde belirtilen müşteri ve kurulum kimliğine bağlanır.
+
+2. Yıllık abonelik
+Abonelik başlangıç ve bitiş tarihleri satış belgesinde ve imzalı lisans dosyasında belirtilir. Abonelik sona erince yeni ölçüm, ağ keşfi ve ajan raporu alımı durur. Müşterinin mevcut panel hesabıyla geçmiş verileri okuması ve dışa aktarması devam eder. Geçerli yenileme dosyası etkinleştirilince yeni ölçümler yeniden başlar. Süre sonu müşteri verilerini otomatik silmez.
+
+3. Yenileme ve ticari şartlar
+Ücret, vergiler, ödeme, iptal/iade, yenileme yöntemi, destek saatleri ve güncelleme kapsamı satıcı tarafından satış belgesinde ayrıca kesinleştirilecektir. Bu taslak otomatik tahsilat veya otomatik yenileme yetkisi vermez.
+
+4. Müşteri verileri ve erişim
+AD kullanıcıları, açık oturumlar, IP/MAC adresleri ve ölçümler müşteri ortamında kişisel veya kurumsal veri içerebilir. Müşteri izleme yetkilerini, bilgilendirmeyi, hesapları ve saklama politikasını belirler. Lisans doğrulaması çevrimdışıdır; lisans kontrolü için otomatik dış veri aktarımı yapılmaz. Uzaktan erişim ve Azure aktarımı ayrıca yapılandırılan özelliklerdir; veri işleme ve barındırma koşulları ayrıca belirlenmelidir.
+
+5. Yedekleme, geri alma ve kaldırma
+Bakım öncesinde korumalı yedek alınır. Geri alma veritabanını da yedek tarihine döndürür; sonraki ölçümler ve değişiklikler geri alınabilir. Kaldırma varsayılan olarak müşteri verilerini, sertifikaları ve kurtarma yedeklerini korur. Müşteri ayrıca kendi yedekleme ve erişim süreçlerini sürdürmelidir.
+
+6. Üçüncü taraf bileşenler
+Paketle sağlanan üçüncü taraf bildirimleri ve lisans metinleri geçerliliğini korur. Satıcı üçüncü taraf haklarını kendi lisansıyla değiştirmez.
+
+7. Kesinleştirilecek hükümler
+Garanti, sorumluluk, hizmet seviyesi, destek/yama taahhüdü, uygulanacak hukuk, uyuşmazlık çözümü ve mevzuat gereklilikleri satıcı kimliği ve hedef pazar belirlendikten sonra incelenip onaylanmalıdır. Bu taslak bunların tamamlandığını veya hukuki uygunluğu onaylamaz.
+
+Bu metin setup içinde ticari sözleşme olarak kullanılmaz. Doldurulmuş ve satıcı tarafından onaylanmış nihai metin ayrı dosya olarak sürüm paketine verilmelidir.

@@ -13,8 +13,9 @@ import ssl
 import subprocess
 import time
 import urllib.request
+import uuid
 
-VERSION = '0.8.0-preview'
+VERSION = '0.9.0-preview'
 SCRIPTS = ('Install-SystemTask.ps1', 'Run-SystemTask.ps1', 'Collect-EndpointSessions.ps1',
            'Export-DirectoryInventory.ps1', 'Send-DirectoryInventory.ps1', 'Send-Report.ps1', 'Setup-Network.ps1', 'Detect-Networks.ps1', 'Maintenance-Tasks.ps1')
 
@@ -43,6 +44,7 @@ def register_product(root, version=None, manager=None):
         return
     import winreg
     root = Path(root).resolve()
+    profile = json.loads((root / 'publisher.json').read_text(encoding='utf-8')) if (root / 'publisher.json').is_file() else {}
     command = ('"' + str(Path(manager).resolve()) + '" --maintenance --root "' + str(root) + '"'
                if manager else '"' + str(root / 'CenterEK.exe') + '" --manage')
     key_path = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CenterEK'
@@ -53,7 +55,7 @@ def register_product(root, version=None, manager=None):
     except FileNotFoundError:
         pass
     with winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CenterEK', 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY) as key:
-        for name, value in {'DisplayName': 'CenterEK', 'DisplayVersion': version or VERSION, 'Publisher': 'CenterEK',
+        for name, value in {'DisplayName': 'CenterEK', 'DisplayVersion': version or VERSION, 'Publisher': profile.get('seller', 'CenterEK'),
                             'InstallLocation': str(root), 'UninstallString': command, 'ModifyPath': command}.items():
             winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
         winreg.SetValueEx(key, 'NoRepair', 0, winreg.REG_DWORD, 1)
@@ -88,6 +90,7 @@ class Options:
     trust_ca: bool = True
     firewall: bool = False
     auto_discover: bool = True
+    accept_eula: bool = False
 
 
 def validate(options):
@@ -120,10 +123,18 @@ def validate(options):
     return target.resolve()
 
 
+def powershell_env(**extra):
+    env = {key: value for key, value in os.environ.items() if key.casefold() != 'psmodulepath'}
+    # Windows PowerShell must build its own module path, rather than inherit
+    # incompatible PowerShell 7 built-in modules from a developer terminal.
+    env.update(extra)
+    return env
+
+
 def powershell(script, *arguments, cwd=None):
     command = [str(Path(os.environ['WINDIR']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'),
                '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-WindowStyle', 'Hidden', '-File', str(script), *map(str, arguments)]
-    result = subprocess.run(command, cwd=cwd, capture_output=True, timeout=180,
+    result = subprocess.run(command, cwd=cwd, env=powershell_env(), capture_output=True, timeout=180,
                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     if result.returncode:
         # Do not put potentially sensitive subprocess output into exception/UI text.
@@ -139,6 +150,15 @@ def install(options, executable, assets, progress=lambda message: None):
         raise ValueError('Installation payload is incomplete.')
     if not (executable.parent / '_internal').is_dir():
         raise ValueError('Extract the complete package, including the _internal folder.')
+    policy_path = assets / 'release-policy.json'
+    policy = json.loads(policy_path.read_text(encoding='utf-8')) if policy_path.exists() else {'mode': 'preview'}
+    eula_digest = None
+    if policy.get('mode') == 'commercial':
+        import hashlib
+        eula = assets / 'EULA.txt'
+        if not eula.is_file() or options.accept_eula is not True:
+            raise ValueError('Read and accept the supplied End User License Agreement before installing')
+        eula_digest = hashlib.sha256(eula.read_bytes()).hexdigest()
     powershell(assets / 'Setup-Network.ps1', '-CheckTasks')
     if options.directory:
         powershell(assets / 'Setup-Network.ps1', '-CheckDirectory')
@@ -156,7 +176,10 @@ def install(options, executable, assets, progress=lambda message: None):
     log_folder = target / 'data/logs'
     log_folder.mkdir(parents=True)
     manifest = {'product': 'CenterEK', 'version': VERSION, 'status': 'installing',
+                'installation_id': uuid.uuid4().hex,
                 'installed_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'completed': []}
+    if eula_digest:
+        manifest.update(eula_sha256=eula_digest, eula_accepted_at=manifest['installed_at'])
     manifest_path = target / 'installation.local.json'
     def step(message):
         progress(message)
@@ -178,7 +201,7 @@ def install(options, executable, assets, progress=lambda message: None):
             html.write_text(html.read_text(encoding='utf-8').replace('lang="tr"','lang="'+options.language+'"'),encoding='utf-8')
         for name in SCRIPTS:
             shutil.copy2(assets / name, target / name)
-        for name in ('INSTALLATION.md', 'REMOTE-ACCESS.md', 'MAINTENANCE.md', 'THIRD-PARTY.txt'):
+        for name in ('INSTALLATION.md', 'REMOTE-ACCESS.md', 'MAINTENANCE.md', 'THIRD-PARTY.txt', 'EULA.txt', 'publisher.json'):
             if (assets / name).is_file():
                 shutil.copy2(assets / name, target / name)
         if (assets / 'licenses').is_dir():

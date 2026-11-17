@@ -21,7 +21,7 @@ def maintenance_window(initial_root=None, check_report=None):
     import installer_core
     window = tk.Tk()
     window.title('CenterEK · Yükseltme / Geri alma / Kaldırma')
-    window.geometry('740x400')
+    window.geometry('740x480')
     folder = tk.StringVar(value=str(initial_root or Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'CenterEK'))
     frame = ttk.Frame(window, padding=24)
     frame.pack(fill='both', expand=True)
@@ -29,6 +29,16 @@ def maintenance_window(initial_root=None, check_report=None):
     ttk.Entry(frame, textvariable=folder, width=85).pack(fill='x', pady=8)
     ttk.Button(frame, text='Klasör seç', command=lambda: folder.set(filedialog.askdirectory() or folder.get())).pack(anchor='w')
     ttk.Label(frame, text='Yükseltme ayarları ve hesapları korur. Kaldırma müşteri verilerini silmez.\nGeri alma, veritabanını da seçilen yedek tarihine döndürür.', wraplength=680).pack(anchor='w', pady=16)
+    accepted = tk.BooleanVar(value=False)
+    ttk.Checkbutton(frame, text='Yeni lisans sözleşmesini okudum ve kabul ediyorum', variable=accepted).pack(anchor='w')
+    def terms():
+        path = assets_root() / 'EULA.txt'
+        view = tk.Toplevel(window)
+        text = tk.Text(view, width=90, height=28, wrap='word')
+        text.pack(fill='both', expand=True)
+        text.insert('1.0', path.read_text(encoding='utf-8') if path.exists() else 'Ön sürüm: ticari lisans sözleşmesi henüz yayımlanmadı.')
+        text.configure(state='disabled')
+    ttk.Button(frame, text='EULA', command=terms).pack(anchor='w')
     status = tk.StringVar(value='Hazır · Paket sürümü: ' + installer_core.VERSION)
     ttk.Label(frame, textvariable=status, wraplength=680).pack(anchor='w', pady=12)
     events = queue.Queue()
@@ -58,13 +68,14 @@ def maintenance_window(initial_root=None, check_report=None):
             messagebox.showerror('CenterEK', str(error))
             return
         state['busy'] = True
+        accept_eula = accepted.get()
         for button in buttons:
             button.configure(state='disabled')
         def worker():
             try:
                 progress = lambda text: events.put(('progress', text))
                 if action == 'upgrade':
-                    result = maintenance.upgrade(root, sys.executable, assets_root(), progress)
+                    result = maintenance.upgrade(root, sys.executable, assets_root(), progress, accept_eula=accept_eula)
                 else:
                     result = getattr(maintenance, action)(root, progress)
                 events.put(('done', 'İşlem tamamlandı. Korumalı yedek: ' + result))
@@ -187,6 +198,8 @@ WORDS = {
 
 for code,text in {'tr':'Bağlı yerel ağları otomatik bul ve cihazları izle','en':'Automatically discover connected local networks and monitor devices','fr':'Découvrir les réseaux locaux connectés et surveiller les équipements','de':'Verbundene lokale Netzwerke automatisch erkennen und Geräte überwachen'}.items():
     WORDS[code] += (text,)
+for code,text in {'tr':'Son Kullanıcı Lisans Sözleşmesini okudum ve kabul ediyorum','en':'I have read and accept the End User License Agreement','fr':'J’ai lu et j’accepte le contrat de licence utilisateur final','de':'Ich habe die Endbenutzer-Lizenzvereinbarung gelesen und akzeptiere sie'}.items():
+    WORDS[code] += (text,)
 
 def wizard(preview=False, check_report=None):
     import tkinter as tk
@@ -251,15 +264,15 @@ def wizard(preview=False, check_report=None):
         ttk.Entry(frame, textvariable=values[key]).grid(row=row, column=1, sticky='ew', pady=7)
     checks = {}
     flags = {}
-    for row, key, word, default in [(10,'endpoint',12,True),(11,'directory',13,False),(12,'trust_ca',14,True),(13,'firewall',15,False),(14,'auto_discover',21,True)]:
+    for row, key, word, default in [(10,'endpoint',12,True),(11,'directory',13,False),(12,'trust_ca',14,True),(13,'firewall',15,False),(14,'auto_discover',21,True),(15,'accept_eula',22,False)]:
         flags[key] = tk.BooleanVar(value=default)
         checks[word] = ttk.Checkbutton(frame, variable=flags[key])
         checks[word].grid(row=row, column=0, columnspan=3, sticky='w', pady=5)
     progress_bar = ttk.Progressbar(frame, mode='indeterminate')
-    progress_bar.grid(row=15, column=0, columnspan=3, sticky='ew', pady=(18, 8))
+    progress_bar.grid(row=16, column=0, columnspan=3, sticky='ew', pady=(18, 8))
     status = tk.Text(frame, height=4, wrap='word', bg='white', fg='#2A4954', font=('Segoe UI', 9), state='disabled')
-    status.grid(row=16, column=0, columnspan=3, sticky='nsew')
-    frame.rowconfigure(16, weight=1)
+    status.grid(row=17, column=0, columnspan=3, sticky='nsew')
+    frame.rowconfigure(17, weight=1)
     actions = ttk.Frame(root,padding=(24,12))
     actions.pack(side='bottom',fill='x')
     open_button = ttk.Button(actions, state='disabled')
@@ -268,6 +281,15 @@ def wizard(preview=False, check_report=None):
     install_button.pack(side='left')
     manage_button = ttk.Button(actions, text='Yükselt / Geri al / Kaldır', command=lambda: (root.destroy(), maintenance_window(values['target'].get())))
     manage_button.pack(side='right')
+    def show_terms():
+        path = assets_root() / 'EULA.txt'
+        window = tk.Toplevel(root)
+        window.title('CenterEK · EULA')
+        text = tk.Text(window, width=90, height=30, wrap='word')
+        text.pack(fill='both', expand=True)
+        text.insert('1.0', path.read_text(encoding='utf-8') if path.exists() else 'Ön sürüm: ticari lisans sözleşmesi henüz yayımlanmadı.')
+        text.configure(state='disabled')
+    ttk.Button(actions, text='EULA', command=show_terms).pack(side='right', padx=8)
     state = {'busy': False, 'url': None}
     events = queue.Queue()
     def translate(*_):
@@ -349,9 +371,26 @@ def main():
     parser.add_argument('--manage', action='store_true')
     parser.add_argument('--maintenance', action='store_true')
     parser.add_argument('--check-maintenance', action='store_true')
+    parser.add_argument('--maintenance-action', choices=['upgrade', 'rollback', 'uninstall', 'restore_uninstalled', 'recover'])
+    parser.add_argument('--accept-eula', action='store_true')
     parser.add_argument('--unattended-install', help='Protected JSON options file; Azure VM provisioning only')
     parser.add_argument('--site-register', help='OS-admin-only site enrollment options; encrypted output only')
     args,remaining=parser.parse_known_args()
+    if args.maintenance_action:
+        import ctypes
+        if not getattr(sys, 'frozen', False) or os.name != 'nt' or not ctypes.windll.shell32.IsUserAnAdmin() or not args.root or not args.report:
+            parser.error('Packaged Windows application, administrator rights, --root and --report required')
+        import maintenance
+        try:
+            if args.maintenance_action == 'upgrade':
+                backup = maintenance.upgrade(args.root, sys.executable, assets_root(), accept_eula=args.accept_eula)
+            else:
+                backup = getattr(maintenance, args.maintenance_action)(args.root)
+            result = {'ok': True, 'backup': backup}
+        except Exception as error:
+            result = {'ok': False, 'error_type': type(error).__name__}
+        Path(args.report).write_text(json.dumps(result), encoding='utf-8')
+        raise SystemExit(0 if result['ok'] else 1)
     if args.manage or args.maintenance:
         if not getattr(sys, 'frozen', False) or os.name != 'nt':
             parser.error('Use the packaged Windows setup')

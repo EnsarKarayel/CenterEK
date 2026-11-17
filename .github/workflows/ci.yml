@@ -133,6 +133,8 @@ jobs:
           if ($process.ExitCode -or -not (Get-Content $report -Raw|ConvertFrom-Json).ok) { throw 'Maintenance UI check failed' }
           python scripts/ci/check_archive.py "$env:RELEASE_DIR"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python scripts/release/check_commercial.py "$env:RELEASE_DIR" --report-only
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: centerek-windows-${{ github.sha }}

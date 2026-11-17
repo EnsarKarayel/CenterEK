@@ -197,6 +197,15 @@ class MaintenanceTests(unittest.TestCase):
                 monitor.main()
             startup.assert_not_called()
 
+    def test_changed_commercial_eula_requires_acceptance_before_stopping_tasks(self):
+        (self.assets / 'release-policy.json').write_text('{"mode":"commercial"}')
+        (self.assets / 'EULA.txt').write_text('Final publisher agreement')
+        with self.assertRaisesRegex(ValueError, 'accept the new EULA'):
+            self.upgrade()
+        self.assertEqual([], self.actions)
+        maintenance.upgrade(self.root, self.exe, self.assets, controller=self.controller, readiness=lambda root: None, accept_eula=True)
+        self.assertTrue(maintenance.read_json(self.root / 'installation.local.json')['eula_sha256'])
+
     def test_frozen_maintenance_runtime_survives_rollback_outside_application(self):
         base = maintenance.backup_base(self.root)
         base.mkdir(parents=True)

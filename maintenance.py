@@ -251,7 +251,7 @@ def version_key(value):
 
 
 @exclusive
-def upgrade(root, executable, assets, progress=lambda text: None, controller=control, readiness=None):
+def upgrade(root, executable, assets, progress=lambda text: None, controller=control, readiness=None, accept_eula=False):
     root, record = validate_root(root)
     executable, assets = Path(executable), Path(assets)
     if version_key(installer_core.VERSION) <= version_key(record['version']):
@@ -260,6 +260,12 @@ def upgrade(root, executable, assets, progress=lambda text: None, controller=con
         raise ValueError('Complete packaged runtime is required')
     if any(not (assets / name).is_file() for name in installer_core.SCRIPTS) or not (assets / 'web/index.html').is_file():
         raise ValueError('Installation payload is incomplete')
+    eula_digest = None
+    policy = read_json(assets / 'release-policy.json') if (assets / 'release-policy.json').exists() else {'mode': 'preview'}
+    if policy.get('mode') == 'commercial':
+        eula_digest = hashlib.sha256((assets / 'EULA.txt').read_bytes()).hexdigest()
+        if record.get('eula_sha256') != eula_digest and accept_eula is not True:
+            raise ValueError('Read and accept the new EULA before upgrading')
     progress('Stopping CenterEK and backing up all settings, accounts and measurements')
     folder = snapshot(root, record, 'upgrade', controller)
     try:
@@ -271,10 +277,13 @@ def upgrade(root, executable, assets, progress=lambda text: None, controller=con
                     shutil.rmtree(destination)
                 shutil.copytree(source, destination)
         shutil.copy2(executable, root / 'CenterEK.exe')
-        for name in (*installer_core.SCRIPTS, 'INSTALLATION.md', 'REMOTE-ACCESS.md', 'MAINTENANCE.md', 'THIRD-PARTY.txt'):
+        for name in (*installer_core.SCRIPTS, 'INSTALLATION.md', 'REMOTE-ACCESS.md', 'MAINTENANCE.md', 'THIRD-PARTY.txt', 'EULA.txt', 'publisher.json'):
             if (assets / name).is_file():
                 shutil.copy2(assets / name, root / name)
         record.update(version=installer_core.VERSION, recovery_snapshot=folder.name)
+        record.setdefault('installation_id', uuid.uuid4().hex)
+        if eula_digest and record.get('eula_sha256') != eula_digest:
+            record.update(eula_sha256=eula_digest, eula_accepted_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
         write_record(root / 'installation.local.json', record)
         resume(root, folder / 'tasks.json', controller)
         (readiness or installer_core.check_ready)(root)

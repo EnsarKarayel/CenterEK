@@ -1,6 +1,16 @@
 'use strict';
 (()=>{
 const rows=[
+['Yıllık abonelik','Annual subscription','Abonnement annuel','Jahresabonnement'],
+['Kurulum kimliği:','Installation ID:','Identifiant d’installation :','Installationskennung:'],
+['Abonelik etkin','Subscription active','Abonnement actif','Abonnement aktiv'],
+['Abonelik etkin değil','Subscription inactive','Abonnement inactif','Abonnement inaktiv'],
+['Ön sürüm','Preview','Version préliminaire','Vorschauversion'],
+['Lisans dosyası','License file','Fichier de licence','Lizenzdatei'],
+['Lisans dosyasını etkinleştir','Activate license file','Activer le fichier de licence','Lizenzdatei aktivieren'],
+['Lisans etkinleştirildi.','License activated.','Licence activée.','Lizenz aktiviert.'],
+['Lisans etkinleştirilemedi. Dosyayı, kurulum kimliğini ve abonelik süresini kontrol edin.','License activation failed. Check the file, installation identity and subscription dates.','Échec de l’activation. Vérifiez le fichier, l’identifiant d’installation et les dates.','Lizenzaktivierung fehlgeschlagen. Datei, Installationskennung und Laufzeit prüfen.'],
+['Abonelik etkin değil. Yeni ölçümler durduruldu; geçmiş verilerinizi görüntüleyebilir ve dışa aktarabilirsiniz.','Subscription inactive. New measurements are paused; historical data remains available to view and export.','Abonnement inactif. Les nouvelles mesures sont suspendues ; les données historiques restent consultables et exportables.','Abonnement inaktiv. Neue Messungen pausieren; historische Daten bleiben lesbar und exportierbar.'],
 ['AD bilgisayarları ve canlı kullanıcı eşleşmesi','AD computers and live user mapping','Ordinateurs AD et utilisateurs connectés','AD-Computer und aktuelle Benutzerzuordnung'],
 ['AD ve DNS envanteri tüm bilgisayarları listeler. Açık kullanıcı yalnızca güncel uç ajanı raporuyla gösterilir.','AD and DNS inventory lists all computers. Signed-in users require a current endpoint report.','L’inventaire AD et DNS répertorie tous les ordinateurs. Les utilisateurs connectés nécessitent un rapport récent de l’agent.','Das AD- und DNS-Inventar listet alle Computer auf. Angemeldete Benutzer benötigen einen aktuellen Agentenbericht.'],
 ['Bilgisayar / domain','Computer / domain','Ordinateur / domaine','Computer / Domäne'],

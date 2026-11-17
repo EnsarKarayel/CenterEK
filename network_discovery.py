@@ -78,7 +78,7 @@ def add_discovered(config, rows, path, validate):
         return added
 
 
-def run(root, stop, inspect_host=None, config=None, config_path=None, validate=None):
+def run(root, stop, inspect_host=None, config=None, config_path=None, validate=None, allowed=lambda: True):
     root = Path(root)
     if inspect_host is None:
         from discover import inspect as inspect_host
@@ -86,6 +86,9 @@ def run(root, stop, inspect_host=None, config=None, config_path=None, validate=N
     data.mkdir(exist_ok=True)
     status_path = data / 'discovery-status.local.json'
     while not stop.is_set():
+        if not allowed():
+            stop.wait(1)
+            continue
         status = {'status': 'detecting', 'started': time.time(), 'networks': [], 'tested': 0, 'total': 0, 'found': 0}
         try:
             write_json(status_path, status)
@@ -103,10 +106,10 @@ def run(root, stop, inspect_host=None, config=None, config_path=None, validate=N
             write_json(status_path, status)
             rows = []
             def inspect(address):
-                return None if stop.is_set() else inspect_host(address)
+                return None if stop.is_set() or not allowed() else inspect_host(address)
             with ThreadPoolExecutor(max_workers=24) as pool:
                 for row in pool.map(inspect, hosts):
-                    if stop.is_set():
+                    if stop.is_set() or not allowed():
                         break
                     status['tested'] += 1
                     if row:
@@ -115,7 +118,7 @@ def run(root, stop, inspect_host=None, config=None, config_path=None, validate=N
                         write_json(data / 'discovery.json', rows)
                     if status['tested'] % 24 == 0:
                         write_json(status_path, status)
-            if not stop.is_set():
+            if not stop.is_set() and allowed():
                 write_json(data / 'discovery.json', rows)
                 if config is not None and config.get('discovery', {}).get('auto_add'):
                     status['added'] = add_discovered(config, rows, config_path, validate)

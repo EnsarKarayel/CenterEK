@@ -26,6 +26,7 @@ import collector_settings
 import network_settings
 import os
 import hashlib
+import licensing
 import site_relay
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -111,6 +112,8 @@ class Store:
         ''')
 
     def record(self, device, ok, latency, error, threshold, now=None):
+        if not licensing.allowed(self):
+            return
         now = time.time() if now is None else now
         with self.lock, self.db:
             row = self.db.execute('SELECT * FROM state WHERE id=?', (device,)).fetchone()
@@ -128,6 +131,8 @@ class Store:
             self.db.execute('INSERT INTO samples VALUES (?,?,?,?)', (device, now, int(ok), latency))
 
     def record_metrics(self, device, result, now=None):
+        if not licensing.allowed(self):
+            return
         now = time.time() if now is None else now
         with self.lock, self.db:
             previous = self.db.execute('SELECT * FROM metrics WHERE device=?', (device,)).fetchone()
@@ -226,7 +231,8 @@ class Store:
             incidents = sorted(incidents, key=lambda row: row['started'], reverse=True)[:100]
             devices.extend(site_relay.load_devices(getattr(self, 'remote_root', None)))
             return {'devices': devices, 'incidents': incidents, 'alerts': insights.alerts(devices),
-                    'now': time.time(), 'interval': config['interval'], 'version': '0.6.1-preview',
+                    'now': time.time(), 'interval': config['interval'], 'version': __import__('installer_core').VERSION,
+                    'license': self.license_gate.status() if hasattr(self, 'license_gate') else {'status': 'preview', 'monitoring_allowed': True},
                     'runtime': {'started': STARTED_AT, 'uptime_seconds': round(time.time()-STARTED_AT),
                                 'mode': os.environ.get('CENTEREK_RUN_MODE', 'interactive')}}
 
@@ -234,21 +240,30 @@ class Store:
 def collect(config, store, stop):
     with ThreadPoolExecutor(max_workers=32) as pool:
         while not stop.is_set():
+            if not licensing.allowed(store):
+                stop.wait(1)
+                continue
             started = time.monotonic()
             devices = tuple(config['devices'])
-            results = pool.map(lambda d: probe(d, config['timeout']), devices)
+            results = pool.map(lambda d: probe(d, config['timeout']) if licensing.allowed(store) else None, devices)
             for d, result in zip(devices, results):
-                store.record(d['id'], *result, config['threshold'])
-            store.prune()
+                if result is not None:
+                    store.record(d['id'], *result, config['threshold'])
+            if licensing.allowed(store):
+                store.prune()
             stop.wait(max(0, config['interval'] - (time.monotonic() - started)))
 
 
 def collect_metrics(config, store, stop):
     with ThreadPoolExecutor(max_workers=4) as pool:
         while not stop.is_set():
+            if not licensing.allowed(store):
+                stop.wait(1)
+                continue
             devices = tuple(config['devices'])
-            for device, result in zip(devices, pool.map(connectors.read, devices)):
-                store.record_metrics(device['id'], result)
+            for device, result in zip(devices, pool.map(lambda d: connectors.read(d) if licensing.allowed(store) else None, devices)):
+                if result is not None:
+                    store.record_metrics(device['id'], result)
             stop.wait(60)
 
 
@@ -289,12 +304,19 @@ def handler(store, config, auth, registry=None):
                     self.close_connection = True
                     self.respond(401, b'{}')
                     return
+                if not licensing.allowed(store):
+                    self.close_connection = True
+                    self.respond(403, b'{"error":"Subscription inactive; history remains accessible"}')
+                    return
                 try:
                     length = int(self.headers.get('Content-Length', 0))
                     maximum = site_relay.MAX_BYTES if self.path.endswith('/site') else 256 * 1024 if self.path.endswith('/endpoint') else 5 * 1024 * 1024
                     if not 1 <= length <= maximum or self.headers.get_content_type() != 'application/json':
                         raise ValueError()
                     payload = json.loads(self.rfile.read(length).decode('utf-8-sig'), parse_constant=lambda x: (_ for _ in ()).throw(ValueError()))
+                    if not licensing.allowed(store):
+                        self.respond(403, b'{}')
+                        return
                     status = registry.ingest(token, payload, kind)
                     self.respond(status, b'{}')
                 except (ValueError, TypeError):
@@ -302,7 +324,7 @@ def handler(store, config, auth, registry=None):
                 except OSError:
                     self.respond(503, b'{}')
                 return
-            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts', '/api/devices', '/api/collectors', '/api/access-settings'):
+            if not auth or self.path not in ('/api/login', '/api/logout', '/api/accounts', '/api/devices', '/api/collectors', '/api/access-settings', '/api/license'):
                 self.respond(404)
                 return
             expected = {('https://' if auth.secure else 'http://') + self.headers.get('Host', '')}
@@ -315,16 +337,24 @@ def handler(store, config, auth, registry=None):
                 auth.logout(self.token())
                 self.respond(200, b'{}', headers={'Set-Cookie': auth.cookie(clear=True)})
                 return
-            if self.path in ('/api/accounts', '/api/devices', '/api/collectors', '/api/access-settings'):
+            if self.path in ('/api/accounts', '/api/devices', '/api/collectors', '/api/access-settings', '/api/license'):
                 user = auth.user(self.token())
                 if not user or user['role'] != 'admin':
                     self.respond(403, b'{}')
+                    return
+                if self.path in ('/api/devices', '/api/collectors', '/api/access-settings') and not licensing.allowed(store):
+                    self.close_connection = True
+                    self.respond(403, b'{"error":"Subscription inactive"}')
                     return
                 try:
                     length = int(self.headers.get('Content-Length', 0))
                     if not 1 <= length <= 4096 or self.headers.get_content_type() != 'application/json':
                         raise ValueError('Geçersiz istek')
                     payload = json.loads(self.rfile.read(length))
+                    if self.path == '/api/license':
+                        result = getattr(store, 'license_gate', licensing.Gate(ROOT)).activate(payload)
+                        self.respond(200, json.dumps(result).encode())
+                        return
                     if not isinstance(payload, dict) or any(not isinstance(payload.get(k, ''), str) or len(payload.get(k, '')) > 256 for k in ('current_password', 'username', 'password', 'role', 'action')):
                         raise ValueError('Geçersiz alan')
                     check, error = auth.login(user['username'], payload.get('current_password', ''), self.client_address[0])
@@ -418,7 +448,20 @@ def handler(store, config, auth, registry=None):
             if self.path == '/api/me':
                 self.respond(200, json.dumps(user or {'username': 'test', 'role': 'viewer'}).encode())
                 return
-            if self.path == '/api/status':
+            if self.path == '/api/license':
+                if user['role'] != 'admin':
+                    self.respond(403, b'{}')
+                    return
+                gate = getattr(store, 'license_gate', licensing.Gate(ROOT))
+                try:
+                    identity = gate.installation_id()
+                except (OSError, ValueError, KeyError):
+                    identity = None
+                profile_path = ROOT / 'publisher.json'
+                profile = json.loads(profile_path.read_text(encoding='utf-8')) if profile_path.is_file() else {}
+                body = json.dumps(dict(gate.status(), installation_id=identity, publisher=profile)).encode()
+                mime = 'application/json; charset=utf-8'
+            elif self.path == '/api/status':
                 body = json.dumps(store.snapshot(config), ensure_ascii=False).encode('utf-8')
                 mime = 'application/json; charset=utf-8'
             elif self.path == '/api/inventory':
@@ -589,6 +632,7 @@ def _main():
         return
     (ROOT / 'data').mkdir(exist_ok=True)
     store = Store(ROOT / 'data' / 'monitor.sqlite3')
+    store.license_gate = licensing.Gate(ROOT)
     store.config_path = Path(args.config)
     if bool(args.tls_cert) != bool(args.tls_key):
         parser.error('TLS sertifika ve anahtar birlikte gerekli')
@@ -617,7 +661,8 @@ def _main():
     if config.get('discovery', {}).get('enabled'):
         import network_discovery
         threading.Thread(target=network_discovery.run, args=(ROOT, stop),
-                         kwargs={'config': config, 'config_path': store.config_path, 'validate': validate}, daemon=True).start()
+                         kwargs={'config': config, 'config_path': store.config_path, 'validate': validate,
+                                 'allowed': store.license_gate.allowed}, daemon=True).start()
     print('CenterEK: ' + ('https://' if args.tls_cert else 'http://') + args.bind + ':' + str(args.port), flush=True)
     try:
         server.serve_forever()
