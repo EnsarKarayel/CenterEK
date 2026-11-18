@@ -26,6 +26,8 @@ Bu paket başka bir temiz Windows bilgisayarda kurulum denemesi içindir. Ticari
 
 ## Deneme kabul listesi
 
+0.9.2-preview için Python olmayan Windows 11 Sandbox ortamında temiz kurulum, HTTPS giriş, SYSTEM görevleri, ajan alımı, kaldırma/geri kurma ve ayrı yükseltme/geri alma testi geçti. Paylaşılabilir sonuçlar [kabul kanıtlarında](docs/acceptance/0.9.2-preview/README.md) bulunur. Aşağıdaki liste her yeni paket ve hedef ortam için yeniden uygulanır; kalıcı yeniden başlatma, dış setup/UAC ve Windows Server kabulü henüz tamamlanmadı.
+
 - [ ] Python olmayan temiz Windows'ta kurulum tamamlandı.
 - [ ] Panel HTTPS ile açıldı, girilen ilk hesapla giriş yapıldı.
 - [ ] Yerel ajan seçildiyse oturum, RAM, disk ve MAC raporu güncellendi.

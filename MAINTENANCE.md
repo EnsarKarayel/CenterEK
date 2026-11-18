@@ -1,6 +1,6 @@
 # CenterEK bakım işlemleri
 
-Windows x64 paket sürümü 0.8.0-preview, paketle kurulmuş 0.6.x/0.7.x kurulumları için yükseltme, geri alma ve veri saklayan kaldırma içerir. Kaynak koddan çalıştırılan eski ofis kurulumu bu akışa otomatik alınmaz. Windows 11 ve Server 2019+ üzerinde gerçek görevler ve yeniden başlatma ile pilot kabulü gerekir.
+Windows x64 paket sürümü 0.9.2-preview; yükseltme, geri alma ve veri saklayan kaldırma içerir. Windows 11 temiz Sandbox ortamında 0.9.1 → 0.9.2 yükseltme, geri alma, kaldırma ve aynı hesapla geri kurma geçti; [kabul kanıtları](docs/acceptance/0.9.2-preview/README.md) paylaşılmıştır. Kaynak koddan çalıştırılan eski ofis kurulumu bu akışa otomatik alınmaz. Kalıcı yeniden başlatma, dış setup/UAC ve Windows Server kabulü henüz tamamlanmadı.
 
 ## Kullanım
 
