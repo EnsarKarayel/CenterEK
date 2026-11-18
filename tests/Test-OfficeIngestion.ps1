@@ -21,4 +21,10 @@ foreach($category in @('Private','DomainAuthenticated','Public','Unknown')){
 $script:exists=$true;$script:called=$false;$failed=$false
 try{Add-OfficeIngestionRule 'Private'|Out-Null}catch{$failed=$true}
 if(-not $failed -or $called){throw 'Existing rule was overwritten'}
+$script:exists=$false;$script:called=$false
+Add-OfficeIngestionRule 'Public' -AllowScopedPublic|Out-Null
+if(-not $called -or ($actual.profiles -join ',') -ne 'Public' -or ($actual.remote -join ',') -ne '192.168.1.0/24,192.168.2.0/24' -or $actual.address -ne '192.168.1.15' -or $actual.port -ne 8765 -or $actual.edge -ne 'Block'){throw 'Explicit public rule exceeded its office scope'}
+$script:called=$false;$failed=$false
+try{Add-OfficeIngestionRule 'Unknown' -AllowScopedPublic|Out-Null}catch{$failed=$true}
+if(-not $failed -or $called){throw 'Unknown profile accepted through explicit option'}
 'Office ingestion rule scope and existing-rule preservation passed'
