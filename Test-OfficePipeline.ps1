@@ -45,6 +45,24 @@ foreach($connection in @(Get-NetTCPConnection -LocalPort 8765 -State Listen -Err
     $report.listeners+=@{address=$connection.LocalAddress;port=$connection.LocalPort;pid=$connection.OwningProcess;process=$process.Name;known_root=@($roots|Where-Object {$process.CommandLine -match [Regex]::Escape($_)}).Count -gt 0}
 }
 if($Role -eq 'Collector'){
+    $report.network_categories=@(Get-NetConnectionProfile|Select-Object InterfaceIndex,NetworkCategory)
+    $probe=New-Object Net.Sockets.TcpClient
+    try{
+        $pending=$probe.BeginConnect('192.168.1.15',8765,$null,$null)
+        if(-not $pending.AsyncWaitHandle.WaitOne(3000)){throw 'Local receiver timed out'}
+        $probe.EndConnect($pending);$report.local_receiver_tcp=$true
+    }catch{$report.local_receiver_tcp=$false;$report.local_tcp_error=$_.Exception.GetType().Name}
+    finally{$probe.Close()}
+    $tlsBefore=[Net.ServicePointManager]::SecurityProtocol
+    try{
+        [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+        $response=Invoke-WebRequest -UseBasicParsing -Uri 'https://192.168.1.15:8765/login' -TimeoutSec 5 -MaximumRedirection 0
+        $report.local_login_http=[int]$response.StatusCode
+    }catch{
+        $report.local_login_http=if($_.Exception.Response){[int]$_.Exception.Response.StatusCode}else{$null}
+        $report.local_https_error=$_.Exception.GetType().Name
+        if($_.Exception -is [Net.WebException]){$report.local_https_status=[string]$_.Exception.Status}
+    }finally{[Net.ServicePointManager]::SecurityProtocol=$tlsBefore}
     try{
         foreach($filter in @(Get-NetFirewallPortFilter|Where-Object {$_.LocalPort -eq '8765'})){
             foreach($rule in @(Get-NetFirewallRule -AssociatedNetFirewallPortFilter $filter)){
