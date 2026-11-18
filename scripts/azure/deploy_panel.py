@@ -41,6 +41,24 @@ def public_archive():
     return base64.b64encode(buffer.getvalue()).decode('ascii'), hashes
 
 
+def updated_template(original, suffix):
+    """Keep previous revision secret references intact for real rollback."""
+    template = copy.deepcopy(original)
+    if len(template['containers']) != 1 or template['containers'][0]['name'] != 'browser-gateway':
+        raise ValueError('Unexpected gateway container')
+    container = template['containers'][0]
+    volume = next(v for v in template['volumes'] if v['name'] == 'configuration')
+    assets_name, config_name = 'pwa-assets-' + suffix, 'pwa-config-' + suffix
+    volume['secrets'] = [item for item in volume['secrets']
+                         if item['path'] not in ('pwa-assets.b64', 'pwa-nginx.conf')]
+    volume['secrets'].extend([{'secretRef': assets_name, 'path': 'pwa-assets.b64'},
+                              {'secretRef': config_name, 'path': 'pwa-nginx.conf'}])
+    container['command'] = ['sh', '-c']
+    container['args'] = ["set -eu; mkdir -p /tmp/centerek-panel; base64 -d /etc/centerek/pwa-assets.b64 | tar -xz --no-same-owner -C /tmp/centerek-panel; nginx -t -c /etc/centerek/pwa-nginx.conf; exec nginx -c /etc/centerek/pwa-nginx.conf -g 'daemon off;'"]
+    template['revisionSuffix'] = 'pwa-' + suffix
+    return template, assets_name, config_name
+
+
 def verify_assets(origin, hashes):
     opener = build_opener(NoRedirect)
     for route, (_, mime) in panel_app.FILES.items():
@@ -94,7 +112,8 @@ def main():
     ingress = app['properties']['configuration']['ingress']
     origin = 'https://' + ingress['fqdn']
     expected = dict(tenant_id=args.tenant_id, client_id=args.client_id, principal_ids=args.principal_id, origin=origin)
-    assert_publishable(auth, **expected)
+    # Both initial publication and an exact, already-approved PWA scope are valid.
+    assert_publishable(auth, **expected, panel_assets=bool(auth['properties']['globalValidation'].get('excludedPaths')))
     if (app['properties']['provisioningState'] != 'Succeeded' or not ingress['external']
             or ingress['allowInsecure'] or ingress['targetPort'] != 8080
             or len(app['properties']['template']['containers']) != 1):
@@ -107,15 +126,7 @@ def main():
     save('app-before.json', app)
     save('auth-before.json', auth)
     save('nginx-before.json', {'config': nginx})
-    template = copy.deepcopy(app['properties']['template'])
-    container = template['containers'][0]
-    if container['name'] != 'browser-gateway':
-        raise ValueError('Unexpected gateway container')
-    volume = next(v for v in template['volumes'] if v['name'] == 'configuration')
-    volume['secrets'].extend([{'secretRef': 'pwa-assets', 'path': 'pwa-assets.b64'}, {'secretRef': 'pwa-nginx-config', 'path': 'pwa-nginx.conf'}])
-    container['command'] = ['sh', '-c']
-    container['args'] = ["set -eu; mkdir -p /tmp/centerek-panel; base64 -d /etc/centerek/pwa-assets.b64 | tar -xz --no-same-owner -C /tmp/centerek-panel; nginx -t -c /etc/centerek/pwa-nginx.conf; exec nginx -c /etc/centerek/pwa-nginx.conf -g 'daemon off;'"]
-    template['revisionSuffix'] = 'pwa-' + uuid.uuid4().hex[:10]
+    template, assets_name, config_name = updated_template(app['properties']['template'], uuid.uuid4().hex[:10])
     updated_auth = copy.deepcopy(auth['properties'])
     updated_auth['globalValidation']['excludedPaths'] = list(PANEL_PUBLIC_PATHS)
     assert_publishable({'properties': updated_auth}, **expected, panel_assets=True)
@@ -144,7 +155,7 @@ def main():
     changed = False
     try:
         az('containerapp', 'secret', 'set', '--name', args.app_name, '--resource-group', args.resource_group,
-           '--secrets', 'pwa-assets=' + encoded, 'pwa-nginx-config=' + config)
+           '--secrets', assets_name + '=' + encoded, config_name + '=' + config)
         print('PUBLIC_ASSET_SECRETS_ADDED', flush=True)
         changed = True
         patch({'properties': {'template': template}})

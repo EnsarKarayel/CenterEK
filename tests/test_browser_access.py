@@ -12,9 +12,31 @@ publish_spec = importlib.util.spec_from_file_location('publish_browser_access', 
 publisher = importlib.util.module_from_spec(publish_spec)
 with patch.dict('sys.modules', {'browser_access': gateway}):
     publish_spec.loader.exec_module(publisher)
+deploy_spec = importlib.util.spec_from_file_location('deploy_panel', Path(__file__).parents[1] / 'scripts/azure/deploy_panel.py')
+deployer = importlib.util.module_from_spec(deploy_spec)
+with patch.dict('sys.modules', {'browser_access': gateway, 'publish_browser_access': publisher}):
+    deploy_spec.loader.exec_module(deployer)
 
 
 class BrowserAccessTests(unittest.TestCase):
+    def test_pwa_update_preserves_previous_assets_and_does_not_duplicate_mounts(self):
+        initial = {'containers': [{'name': 'browser-gateway', 'image': 'unchanged'}],
+                   'volumes': [{'name': 'configuration', 'secrets': [{'secretRef': 'backend-ca', 'path': 'backend-ca.pem'}]}],
+                   'scale': {'minReplicas': 1}}
+        saved = copy.deepcopy(initial)
+        first, assets1, config1 = deployer.updated_template(initial, 'first')
+        previous = copy.deepcopy(first)
+        second, assets2, config2 = deployer.updated_template(first, 'second')
+        self.assertEqual(initial, saved)
+        self.assertEqual(first, previous, 'rollback revision must retain its old secret references')
+        self.assertNotEqual(assets1, assets2)
+        self.assertNotEqual(config1, config2)
+        mounts = second['volumes'][0]['secrets']
+        self.assertEqual(len(mounts), len({item['path'] for item in mounts}))
+        self.assertIn({'secretRef': 'backend-ca', 'path': 'backend-ca.pem'}, mounts)
+        self.assertEqual(second['scale'], initial['scale'])
+        self.assertEqual(second['containers'][0]['image'], 'unchanged')
+
     def test_pwa_locations_are_exact_and_preserve_the_private_proxy(self):
         original = gateway.nginx_config('10.42.1.4', 'ce-staging')
         extended = gateway.with_panel_assets(original)
