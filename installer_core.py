@@ -13,10 +13,83 @@ import ssl
 import subprocess
 import time
 import urllib.request
+import uuid
 
-VERSION = '0.6.1-preview'
+VERSION = '0.9.2-preview'
 SCRIPTS = ('Install-SystemTask.ps1', 'Run-SystemTask.ps1', 'Collect-EndpointSessions.ps1',
-           'Export-DirectoryInventory.ps1', 'Send-DirectoryInventory.ps1', 'Send-Report.ps1', 'Setup-Network.ps1', 'Detect-Networks.ps1')
+           'Export-DirectoryInventory.ps1', 'Send-DirectoryInventory.ps1', 'Send-Report.ps1', 'Setup-Network.ps1', 'Detect-Networks.ps1', 'Maintenance-Tasks.ps1')
+
+
+def windows_computer_name():
+    """Use the same NetBIOS identity as Windows tasks/AD, not the DNS hostname."""
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    function = kernel.GetComputerNameExW
+    function.argtypes = [wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    function.restype = wintypes.BOOL
+    size = wintypes.DWORD(256)
+    buffer = ctypes.create_unicode_buffer(size.value)
+    if not function(0, buffer, ctypes.byref(size)):  # ComputerNameNetBIOS
+        raise ctypes.WinError(ctypes.get_last_error())
+    value = buffer.value.upper()
+    if not value or len(value) > 15:
+        raise ValueError('Windows computer identity is unavailable')
+    return value
+
+
+def check_ready(root):
+    root = Path(root)
+    network = json.loads((root / 'server.local.json').read_text(encoding='utf-8-sig'))
+    address = network['bind']
+    if address == '0.0.0.0':
+        address = '127.0.0.1'
+    ca = root / 'certs/panel/panel-ca.pem'
+    context = ssl.create_default_context(cafile=str(ca))
+    client = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=context))
+    for _ in range(45):
+        try:
+            with client.open('https://' + address + ':' + str(network['port']) + '/login', timeout=2) as response:
+                if response.status == 200:
+                    return
+        except (OSError, ValueError):
+            time.sleep(2)
+    raise RuntimeError('Upgraded application did not become HTTPS-ready')
+
+
+def register_product(root, version=None, manager=None):
+    if os.name != 'nt':
+        return
+    import winreg
+    root = Path(root).resolve()
+    profile = json.loads((root / 'publisher.json').read_text(encoding='utf-8')) if (root / 'publisher.json').is_file() else {}
+    command = ('"' + str(Path(manager).resolve()) + '" --maintenance --root "' + str(root) + '"'
+               if manager else '"' + str(root / 'CenterEK.exe') + '" --manage')
+    key_path = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CenterEK'
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as existing:
+            if Path(winreg.QueryValueEx(existing, 'InstallLocation')[0]).resolve() != root:
+                raise ValueError('Product registration belongs to another installation')
+    except FileNotFoundError:
+        pass
+    with winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CenterEK', 0, winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY) as key:
+        for name, value in {'DisplayName': 'CenterEK', 'DisplayVersion': version or VERSION, 'Publisher': profile.get('seller', 'CenterEK'),
+                            'InstallLocation': str(root), 'UninstallString': command, 'ModifyPath': command}.items():
+            winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+        winreg.SetValueEx(key, 'NoRepair', 0, winreg.REG_DWORD, 1)
+
+
+def unregister_product(root):
+    if os.name != 'nt':
+        return
+    import winreg
+    path = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CenterEK'
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path, 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+            if Path(winreg.QueryValueEx(key, 'InstallLocation')[0]).resolve() != Path(root).resolve():
+                raise ValueError('Uninstall registration belongs to another folder')
+        winreg.DeleteKeyEx(winreg.HKEY_LOCAL_MACHINE, path, winreg.KEY_WOW64_64KEY)
+    except FileNotFoundError:
+        pass
 
 
 @dataclass
@@ -34,6 +107,7 @@ class Options:
     trust_ca: bool = True
     firewall: bool = False
     auto_discover: bool = True
+    accept_eula: bool = False
 
 
 def validate(options):
@@ -66,10 +140,18 @@ def validate(options):
     return target.resolve()
 
 
+def powershell_env(**extra):
+    env = {key: value for key, value in os.environ.items() if key.casefold() != 'psmodulepath'}
+    # Windows PowerShell must build its own module path, rather than inherit
+    # incompatible PowerShell 7 built-in modules from a developer terminal.
+    env.update(extra)
+    return env
+
+
 def powershell(script, *arguments, cwd=None):
     command = [str(Path(os.environ['WINDIR']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'),
                '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-WindowStyle', 'Hidden', '-File', str(script), *map(str, arguments)]
-    result = subprocess.run(command, cwd=cwd, capture_output=True, timeout=180,
+    result = subprocess.run(command, cwd=cwd, env=powershell_env(), capture_output=True, timeout=180,
                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     if result.returncode:
         # Do not put potentially sensitive subprocess output into exception/UI text.
@@ -85,6 +167,15 @@ def install(options, executable, assets, progress=lambda message: None):
         raise ValueError('Installation payload is incomplete.')
     if not (executable.parent / '_internal').is_dir():
         raise ValueError('Extract the complete package, including the _internal folder.')
+    policy_path = assets / 'release-policy.json'
+    policy = json.loads(policy_path.read_text(encoding='utf-8')) if policy_path.exists() else {'mode': 'preview'}
+    eula_digest = None
+    if policy.get('mode') == 'commercial':
+        import hashlib
+        eula = assets / 'EULA.txt'
+        if not eula.is_file() or options.accept_eula is not True:
+            raise ValueError('Read and accept the supplied End User License Agreement before installing')
+        eula_digest = hashlib.sha256(eula.read_bytes()).hexdigest()
     powershell(assets / 'Setup-Network.ps1', '-CheckTasks')
     if options.directory:
         powershell(assets / 'Setup-Network.ps1', '-CheckDirectory')
@@ -102,7 +193,10 @@ def install(options, executable, assets, progress=lambda message: None):
     log_folder = target / 'data/logs'
     log_folder.mkdir(parents=True)
     manifest = {'product': 'CenterEK', 'version': VERSION, 'status': 'installing',
+                'installation_id': uuid.uuid4().hex,
                 'installed_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'completed': []}
+    if eula_digest:
+        manifest.update(eula_sha256=eula_digest, eula_accepted_at=manifest['installed_at'])
     manifest_path = target / 'installation.local.json'
     def step(message):
         progress(message)
@@ -124,9 +218,11 @@ def install(options, executable, assets, progress=lambda message: None):
             html.write_text(html.read_text(encoding='utf-8').replace('lang="tr"','lang="'+options.language+'"'),encoding='utf-8')
         for name in SCRIPTS:
             shutil.copy2(assets / name, target / name)
-        for name in ('INSTALLATION.md', 'THIRD-PARTY.txt'):
+        for name in ('INSTALLATION.md', 'REMOTE-ACCESS.md', 'MAINTENANCE.md', 'THIRD-PARTY.txt', 'EULA.txt', 'publisher.json'):
             if (assets / name).is_file():
                 shutil.copy2(assets / name, target / name)
+        if (assets / 'licenses').is_dir():
+            shutil.copytree(assets / 'licenses', target / 'licenses')
         from file_security import restrict
         restrict(target, directory=True)
         step('Creating local administrator and database')
@@ -137,7 +233,7 @@ def install(options, executable, assets, progress=lambda message: None):
         store = monitor.Store(target / 'data/monitor.sqlite3')
         try:
             auth.Auth(store).add_user(options.username, options.password, 'admin')
-            computer = socket.gethostname().upper()
+            computer = windows_computer_name()
             config = {'interval': 30, 'threshold': 3, 'timeout': 2, 'devices': [{
                 'id': 'local-host', 'name': computer, 'host': options.address, 'kind': 'Sunucu',
                 'method': 'tcp', 'port': options.port, 'agent_computer': computer}]}
@@ -204,6 +300,7 @@ def install(options, executable, assets, progress=lambda message: None):
         (shortcut / 'CenterEK.url').write_text('[InternetShortcut]\nURL=' + url + '\n', encoding='utf-8')
         manifest.update(status='ready', url=url, access_mode=options.mode, language=options.language)
         step('Installation completed')
+        register_product(target)
         return url
     except Exception as error:
         manifest.update(status='failed', error_type=type(error).__name__)

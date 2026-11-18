@@ -1,148 +1,78 @@
-# CenterEK Monitor 0.5
+# CenterEK
 
-Yerel ağ, fiziksel sunucu ve ağ cihazları için geliştirilmekte olan izleme uygulaması. Ürün yönü ve ticari yayın kabul ölçütleri [PRODUCT.md](PRODUCT.md) dosyasındadır. Bu sürüm pilot içindir.
+CenterEK; bilgisayar, sunucu ve ağ cihazlarının erişilebilirliğini, kaynak kullanımını ve kullanıcı oturumlarını tek panelde izlemek için geliştirilen bir üründür. Sunucu müşterinin ortamına kurulur; panel tarayıcıdan veya bilgisayara yüklenebilen PWA üzerinden açılır.
 
-## 0.5 — kalıcı arka plan ve canlı dashboard
+**Güncel paket: 0.9.2-preview. Henüz satışa hazır son sürüm değildir.** Windows 11 üzerinde temiz kurulum, yükseltme, geri alma ve verileri saklayarak kaldırma testleri geçti. Üretim kod imzası, nihai lisans/sözleşme onayı, dış setup/UAC, kalıcı yeniden başlatma ve Windows Server kabulü açık. Ayrıntılar: [ticari yayın durumu](COMMERCIAL-STATUS.md) ve [test kanıtları](docs/acceptance/0.9.2-preview/README.md).
 
-CenterEK sunucusu ile AD/endpoint göndericisi SYSTEM görevleriyle kullanıcı oturumu kapalıyken çalışabilir. Açılış ve kurtarma tetikleyicileri, işlem yeniden başlatma, dönen dosya günlükleri ve makine kapsamlı DPAPI kimlik dosyaları eklendi. Mevcut kurulumları dönüştürmek için **[UNATTENDED.md](UNATTENDED.md)**.
+## Hangi bileşeni kurmalıyım?
 
-Genel durum ekranında canlı bağlantı göstergesi, saat, yenileme ilerlemesi, ölçüme dayalı trafik akış grafiği, erişilebilirlik halkası ve güncel uç bilgisayar akışı bulunur. Ekran 5 saniyede, uç envanter 10 saniyede yenilenir. Yeni uç ajan 15 saniyede ölçer; firewall kaynakları yaklaşık 60 saniye, AD yaklaşık 5 dakika aralığında kalır. Ekran animasyonu yeni kaynak ölçümü gibi sunulmaz.
+| İhtiyaç | Bileşen |
+| --- | --- |
+| İzleme sistemini kendi ortamınızda çalıştırmak | Windows sunucu setup'ı |
+| Hazır bir CenterEK panelini uygulama gibi açmak | PWA paneli |
+| Diğer bilgisayarların RAM, disk ve açık kullanıcılarını görmek | Her bilgisayara kayıtlı uç ajanı |
+| AD hesaplarını, bilgisayar ve DNS envanterini almak | Yetkili Windows sunucusunda dizin toplayıcısı |
+| ESXi, firewall veya switch ölçümlerini almak | Yetkili ESXi/API/SNMP bağlantısı |
 
-SYSTEM görevleri sunucularda ayrıca kurulmalıdır; sadece ZIP dosyasını güncellemek kalıcı görevi kurmaz. Scriptler gerçek program klasörü için SYSTEM/admin dosya izinleri uygular. AD'de hesap açılmaz. Gerçek sunucularda oturum kapatma/yeniden başlatma doğrulaması kurulumun parçasıdır.
+PWA kurulumu sunucu veya ajan kurmaz. Ağ keşfi de diğer bilgisayarların kaynak ve oturum bilgilerini tek başına getirmez.
 
-## Otomatik ajan raporları
+## 1. Windows sunucusunu kurun
 
-Uç bilgisayar artık oturum/yerel kart IP/CPU/RAM verisini bilgisayara bağlı ayrı anahtarla HTTPS üzerinden gönderebilir. AD/DHCP/DNS için ayrı otomatik gönderim betiği vardır. Anahtarlar Windows DPAPI ile korunur; panel hesabı ve AD hesapları birbirinden ayrıdır. Bilgisayar kaynak grafikleri ve yöneticiye özel Ajan bağlantıları ekranı eklendi.
+### Ön sürümü edinme
 
-Kurulum ve sınırlar: **[AGENT-SETUP.md](AGENT-SETUP.md)**. Önce TLS, sonra bilgisayar kaydı ve yerel kurulum gerekir. Sadece kod güncellemesi mevcut bilgisayarlara ajan kurmaz. Mevcut ayarlar, kullanıcılar ve manuel raporlar korunur.
+Henüz onaylanmış ticari GitHub Release indirmesi sunulmuyor. Test paketi için [GitHub Actions → CI](https://github.com/EnsarKarayel/CenterEK/actions/workflows/ci.yml) sayfasında ilgili commit'in başarılı çalışmasını açın. **Artifacts → `centerek-windows-<commit>`** paketini indirin ve arşivi çıkarın. GitHub oturumu gerekir; bu test çıktıları 14 gün saklanır. Başarılı CI, ticari yayın onayı değildir.
 
-## Kullanıcı girişi
+Arşivdeki `CenterEK-Setup-0.9.2-preview-win-x64.exe` tek dosya yükleyicidir. Yanındaki SHA256 dosyasıyla bütünlüğünü kontrol edebilirsiniz. Mevcut ön sürüm imzasızdır; hash yayıncı kimliğini doğrulamaz. Güvenlik yazılımını veya kurum politikalarını kapatmayın.
 
-Sol menü, okunabilir tablolar, FortiGate CPU/RAM ve IP/MAC envanteri; AD kullanıcılarını içe aktarma ve uç bilgisayardan kullanıcı-oturum sorgulama eklendi. AD oturum açma entegrasyonu veya AD'de hesap oluşturma yoktur.
+### Kurulum adımları
 
-**Panel artık kullanıcı girişi gerektirir.** Güncellemeden sonra önce yerel hesabı oluşturun, ardından start.py çalıştırın:
+1. Windows x64 bilgisayarda setup'ı açın ve yönetici iznini verin. **Hedef bilgisayara Python veya pip kurmanız gerekmez.** Windows 11 temiz Sandbox testi geçti; Windows 10 ve Server 2019+ hedeflerinin ayrı kabulü tamamlanmalıdır. Server 2012 R2 bu setup için doğrulanmış hedef değildir.
+2. Dili ve yeni, boş bir kurulum klasörünü seçin. İlk CenterEK yönetici hesabını ve parolasını oluşturun.
+3. Erişimi seçin: yalnızca bu bilgisayar veya özel LAN adresi. LAN firewall izni isteğe bağlıdır ve Private/Domain profillerine sınırlıdır. Program internet/modem portlarını otomatik açmaz.
+4. Otomatik HTTPS sertifikası ve Windows CA güveni seçimini inceleyin. Ön sürümün otomatik kurulum akışı seçilen panel adları/IP'leri için makine sertifika deposuna güven ekler.
+5. İsterseniz bu bilgisayarın ölçüm ajanını ve bağlı yerel ağ keşfini seçin. AD toplayıcısını yalnızca AD modülü ve gerekli okuma yetkileri bulunan bilgisayarda seçin.
+6. Kurulum sonunda **Paneli aç** düğmesine basın ve oluşturduğunuz CenterEK hesabıyla giriş yapın. Sunucu ve seçilen yerel ajanlar SYSTEM zamanlanmış görevleriyle arka planda çalışır.
+7. Panelin **Kurulum / Bağlantılar** bölümünden cihazları ve yetkili kaynak bağlantılarını ekleyin. Her kaynakta son ölçüm zamanını kontrol edin.
 
-```cmd
-"C:\Program Files\Python311\python.exe" users.py add --role admin
-"C:\Program Files\Python311\python.exe" start.py
-```
+Tam seçenekler ve günlükler: [Windows kurulumu](INSTALLATION.md). LAN/VPN/HTTPS ters proxy seçenekleri: [uzaktan erişim](REMOTE-ACCESS.md).
 
-Kurulum, AD/DHCP/DNS aktarımı, uç bilgisayar oturum sorgulama, kullanıcı rolleri ve TLS erişimi: **[OPERATIONS.md](OPERATIONS.md)**.
+## 2. Paneli bilgisayarınıza uygulama olarak yükleyin
 
-Güncelleme yardımcısı update.py, uygulama durdurulmuşken kaynakları indirir; önce klasörü yedekler, yerel ayar/verileri korur. GitHub'dan yeni dosyaların tamamını almak gerekir; eski bir dosya listesiyle kısmi güncelleme yapmayın.
+1. PWA dosyaları yayınlanmış CenterEK sunucunuzun `https://PANEL-ADRESINIZ/panel/` adresini Edge'de açın. HTTPS sertifikasının tarayıcı tarafından güvenilir olması gerekir.
+2. **Panel uygulamasını yükle** düğmesini veya adres çubuğundaki yükleme simgesini kullanın. Menüde **Bu siteyi uygulama olarak yükle** seçeneğini de kullanabilirsiniz; menü konumu tarayıcı sürümüne göre değişebilir.
+3. Uygulamayı Başlat menüsünden açın, **Paneli aç** düğmesini seçin ve CenterEK hesabınızla giriş yapın. Ortamınız Microsoft/kurum girişi kullanıyorsa önce o giriş görünür.
 
-## Neler var?
+Mevcut yetkili pilot ortam: [Azure PWA paneli](https://centerek-browser.wonderfulocean-51ea5b45.swedencentral.azurecontainerapps.io/panel/). Bu adres genel müşteri barındırma veya herkese açık demo hizmeti değildir; erişim yetkisi gerekir.
 
-- ICMP veya seçilmiş TCP portu ile erişim ve kesinti takibi.
-- Genel durum ekranında öncelikli sorunlar ve önerilen ilk kontroller.
-- Cihaz araması, son 24 saatlik erişim/CPU/RAM grafikleri, datastore ve port ayrıntıları.
-- Yapılandırılırsa ESXi CPU/RAM/uptime/datastore okuyucusu.
-- Yapılandırılırsa SNMPv2c IF-MIB port durumu, 64-bit trafik ve hata sayaçları (en fazla 128 port).
-- FortiGate sistem/arayüz, CPU/RAM ve IP/MAC envanteri okuyucusu (ek uç noktalar için FortiOS sürümünde doğrulama gerekli).
-- Belirtilen özel IP aralığında ICMP ve altı TCP servisi keşfi. Otomatik cihaz kimliği tespiti veya tam port taraması değildir.
-- SQLite kalıcı kayıt; ölçümler 30 gün saklanır, panel son 24 saati gösterir. Kesinti olayları korunur.
-- Durum ve başarılı kontrol oranını içeren CSV raporu.
+PWA aynı sunucunun panelini açar. Çevrimdışıyken yalnızca bağlantı hata ekranı gösterilir; kullanıcı, cihaz, rapor ve oturum verileri çevrimdışı önbelleğe alınmaz. Microsoft Store kaydı PWA'yı tarayıcıdan yüklemek için gerekmez.
 
-## Kurulum
+**Paket sürümü ayrımı:** PWA kaynakları güncel derlemeye dahil edilir; daha önce üretilmiş 0.9.2 ön sürüm EXE'sine geriye dönük eklenmez. Azure pilotunda PWA ayrı HTTPS geçidi üzerinden yayınlanmıştır. Yayın ve dağıtım ayrıntıları: [PWA paneli](STORE-PANEL.md).
 
-Python 3.11+ gerekir. Temel erişim/keşif için ek paket gerekmez; ESXi ve SNMP için:
+## 3. Bilgisayar ve cihaz verilerini bağlayın
 
-```cmd
-cd /d C:\CenterEK
-"C:\Program Files\Python311\python.exe" -m pip install -r requirements.txt
-```
+- **Windows bilgisayarlar:** [Ajan kurulum rehberi](AGENT-SETUP.md) ile her bilgisayarı ayrı kaydedip uç ajanını kurun. Güncel RAM, disk ve açık kullanıcı oturumları bu raporlardan gelir.
+- **Linux sunucular:** [Linux ajanı](LINUX-AGENT.md) ile yerel ölçümleri gönderin.
+- **AD ortamı:** Dizin toplayıcısı hesap/bilgisayar envanteri sağlar. AD son oturum bilgisi, o anda açık kullanıcı veya çevrimiçi bilgisayar kanıtı değildir. [İşletim rehberi](OPERATIONS.md) ve [yönetici için domain dağıtım araçları](DOMAIN-ROLLOUT.md) ayrıca incelenmelidir. Domain rehberindeki ofis IP/adları pilot örnekleridir; müşteriye özel hazırlık gerekir.
+- **ESXi, FortiGate ve switch:** İlgili bağlantıya okuma yetkili hesap/API/SNMP bilgilerini ve güvenilen sertifikayı tanımlayın. Canlı cihaz uyumluluğu ayrıca doğrulanmalıdır.
 
-Yeni kurulumda örneği kopyalayıp cihazları düzenleyin. Mevcut kurulumda config.local.json dosyanızı koruyun:
+Başarılı kurulumdan sonra panelde bilgisayar adı, rapor zamanı, RAM/disk ve beklenen kullanıcı oturumunu karşılaştırın. Eski rapor güncel ölçüm sayılmaz. Erişilebilir cihaz, bütün donanım ölçümleri alınmış cihaz anlamına gelmez.
 
-```cmd
-copy config.example.json config.local.json
-"C:\Program Files\Python311\python.exe" monitor.py --check-config
-"C:\Program Files\Python311\python.exe" monitor.py
-```
+## Yükseltme, geri alma ve kaldırma
 
-Panel: http://127.0.0.1:8765 . Panel yalnızca çalıştığı bilgisayardan erişilir. Kimlik doğrulama zorunludur. Ağ erişimi için --bind ile birlikte --tls-cert ve --tls-key gerekir; ayrıntılar OPERATIONS.md içindedir.
+Yeni setup'taki **Yükselt / Geri al / Kaldır** ekranından mevcut paket kurulumunu seçin. Yükseltme öncesinde uygulama, veritabanı, ayar, sertifika ve görev yedekleri doğrulanır. **Geri alma, aktif veritabanını yedek tarihine döndürür; sonraki ölçüm ve değişiklikler geri alınır.**
 
-Kullanıcı Windows Server 2012 R2 / Python 3.11.9 üzerinde 0.1 panelini çalıştırdı. 0.3 ve ek paketlerin aynı makinede doğrulanması gerekir. Ticari sürüm için güncel, desteklenen platform matrisi ayrıca belirlenecek.
+**Kaldır · verileri sakla** seçeneği müşteri verilerini ve yedekleri korur. Diğer bilgisayarlardaki ajanlar ayrıca yönetilir. Kaynak kodla çalışan eski kurulumlar otomatik olarak bu bakım akışına dönüşmez. Kurtarma ve veri koruma ayrıntıları: [bakım rehberi](MAINTENANCE.md).
 
-## Mevcut sürümü güncelleme
+## Abonelik ve satış durumu
 
-1. Çalışan terminalde Ctrl+C ile uygulamayı durdurun.
-2. C:\CenterEK klasörünün tamamını ayrı bir konuma yedekleyin.
-3. Yeni GitHub ZIP'indeki kaynak dosyalarını C:\CenterEK üzerine kopyalayın. config.local.json, config.backup.local.json, certs ve data klasörünü koruyun. .git klasörünü sunucuya taşımak gerekmez.
-4. Yukarıdaki pip komutunu çalıştırın. --check-config ile ayarları doğrulayın.
-5. İlk panel hesabını users.py add --role admin ile oluşturun. API bilgilerini sorarak başlatmak için start.py çalıştırın.
+Planlanan satış modeli yıllık aboneliktir. Ticari lisans uygulaması, süre dolunca yeni ölçüm/keşif ve ajan raporu kabulünü durdurur; geçmiş verileri okumayı ve CSV dışa aktarmayı korur. Yenileme, kurulum kimliğine bağlı imzalı lisans dosyasıyla yapılır. **Mevcut ön sürüm ücretli ticari lisansla yayımlanmış ürün değildir.**
 
-Veritabanı tabloları açılışta eklenir; önceki durum ve kesinti kayıtları silinmez. Eski tarihler için yeni ölçüm grafikleri geriye dönük oluşmaz.
+[Lisans mekanizması](LICENSING.md), [kod imzalama hazırlığı](CODE-SIGNING.md) ve [satış öncesi kalan işler](COMMERCIAL-STATUS.md) ayrı belgelenmiştir. PWA'nın yayınlanması, bağımsız sunucu/ajan setup'ının imzalanması veya satış kabulünün tamamlanması anlamına gelmez.
 
-## Ağ keşfi
+Destek: **karayelensar@gmail.com**. Kurulum ve ekran sorunlarını sürüm, hata metni ve kişisel verilerden arındırılmış ekran görüntüsüyle iletebilirsiniz. Parola, ajan anahtarı, sertifika özel anahtarı veya tam yedek göndermeyin. Sürekli sistem yönetimi ve SLA taahhüdü bulunmaz.
 
-Yalnızca yönettiğiniz ağda, izleme sunucusunda çalıştırın. Yerel aralığı açıkça belirtin:
+## Geliştiriciler ve mevcut kaynak kurulumları
 
-```cmd
-"C:\Program Files\Python311\python.exe" discover.py --start 192.168.1.1 --end 192.168.3.255
-```
+Yukarıdaki müşteri setup'ı kaynak kod kurulumundan ayrıdır. Kaynaktan çalıştırma için Python 3.11+, [bağımlılıklar](requirements.txt), ilk panel hesabı ve HTTPS/yerel ayarlar gerekir. Ayrıntılı komutlar [OPERATIONS.md](OPERATIONS.md), kalıcı görev dönüşümü [UNATTENDED.md](UNATTENDED.md) içindedir. Yerel config, data, sertifikalar ve ajan kimlikleri Git'e alınmamalıdır.
 
-En fazla 1024 adres, 24 paralel iş; ICMP ve TCP 22/80/443/445/3389/4443 kontrol edilir. Birkaç dakika sürebilir. Diğer portları kullanan veya bu kontrollere yanıt vermeyen cihazlar kaçabilir. Sonuç data/discovery.json içine yazılır ve panelde Ağ keşfi sekmesinde görünür. Aktif izleme listesi değiştirilmez. Tek dış IP, VLAN veya subnet maskesini belirlemez; fiziksel topoloji keşfi ayrı bir iştir.
-
-## Kaynak bağlantılarını yapılandırma
-
-```cmd
-"C:\Program Files\Python311\python.exe" configure.py
-```
-
-Bir cihaz ve bağlantı türü seçilir. ESXi/FortiGate için port ve güvenilen CA PEM yolu sorulur. Parola veya token bu adımda kaydedilmez. Sonra:
-
-```cmd
-"C:\Program Files\Python311\python.exe" start.py
-```
-
-Terminal yalnızca yapılandırılan bağlantıların kullanıcı/parola/community/token değerlerini sorar. Parolalar ekranda gösterilmez; işlem belleği ve ortam değişkenlerinde tutulur, dosyaya yazılmaz. İsterseniz ilgili ortam değişkenlerini servis hesabı ortamından sağlayabilirsiniz. Mevcut yapılandırma config.backup.local.json olarak yedeklenir.
-
-ESXi için her hostta okuma yetkili hesap; FortiGate için izleme sunucusu IP'sine sınırlı ve gereken monitor uç noktalarına okuma yetkili REST API hesabı gerekir. SNMPv2c cihazda etkin olmalı, community yalnızca okuma ve izleme sunucusu IP'siyle kısıtlanmalıdır. SNMPv2c şifrelenmez; SNMPv3 henüz uygulanmadı. Switch, AP veya firewall IF-MIB sağlıyorsa aynı SNMP okuyucusu kullanılabilir.
-
-HTTPS doğrulaması varsayılan olarak açıktır. Cihazın sertifikası güvenilen CA'dan gelmeli ve kullanılan IP ile eşleşmelidir. Özel CA için collector.ca_file kullanılır. Geçersiz sertifika veya kimlik bilgisi durumunda erişim kontrolü yeşil olsa bile kaynak ölçümü hata gösterir. FortiGate API yolları/alanları sürüme göre değişebilir; 401/403/404 yanıtları gerçek cihaz üzerinde incelenmelidir.
-
-Yerel collector örneği (mevcut cihaz kaydına eklenir):
-
-```json
-{
-  "collector": {
-    "type": "esxi",
-    "port": 443,
-    "username_env": "CENTEREK_SERVER1_USERNAME",
-    "password_env": "CENTEREK_SERVER1_PASSWORD",
-    "ca_file": "C:/CenterEK/certs/site-ca.pem"
-  }
-}
-```
-
-SNMP için type=snmp ve community_env; FortiGate için type=fortigate ve token_env kullanılır. Parola/token/community değerini config içine yazmayın. Yerel config, certs, data ve yedek config dosyaları Git dışında tutulur.
-
-## Ölçümleri yorumlama
-
-Varsayılan 30 saniye, 3 ardışık başarısızlık sonrası olay; ilk başarısızlık ve doğrulama zamanı ayrıdır. Kaynak okuyucuları bağımsız iş parçacığında yaklaşık 60 saniyede bir çalışır; uzun sorgular aralığı uzatabilir. Eski veri sağlıklı sayılmaz. CPU/RAM yüzde 90 ve üzerindeki tek güncel ölçüm uyarı üretir; süreklilik garantisi yoktur.
-
-24 saatlik oran başarılı kontroller / toplam kontrollerdir; zaman ağırlıklı SLA değildir. Uygulama kapalıyken ölçülmeyen aralıklar oran hesabında yoktur. Trafik Mbps sayaç farkıdır; internet hattının azami kapasitesi veya hız testi değildir. İlk sayaç ölçümü, sıfırlanma, discontinuity değişimi ve 180 saniyeyi aşan aralıkta hız boş kalır. IF-MIB desteklenmeyen alanlar boş kalır; yönetimsel olarak kapalı portun oper down olması tek başına kablo arızası kanıtı değildir.
-
-ICMP süresi ping komutunun başlatılma süresini içerir; kesin RTT değildir. TCP erişimi uygulamanın işlevini veya donanımın tamamen sağlıklı olduğunu kanıtlamaz. Fiziksel kablo haritası, MAC eşleme, sıcaklık ve fan için ilgili okuyucular gerekir.
-
-İsteğe bağlı depends_on cihaz ID listesi manuel ilişkiyi gösterir; otomatik fiziksel topoloji veya kesin kök neden iddiası yoktur. Bağımlılık döngüleri reddedilir. Bildirim bastırma henüz yoktur.
-
-## Henüz olmayanlar
-
-Linux/Windows kaynak ajanı, WMI, Dell iDRAC sıcaklık/fan, SNMPv3, LLDP/CDP/FDB topolojisi, NetFlow/sFlow, DNS ve paket kaybı ölçümleri, gerçek hız testi, dışarı bildirim, Windows servisi, web üzerinden kullanıcı yönetimi ve çok müşteri izolasyonu. Panel kullanıcı girişi/rol ayrımı eklendi; uç oturum ve AD veri akışı OPERATIONS.md içinde açıklanır. Ürünün bu işlevleri varmış gibi satılması uygun değildir; ayrıntılı sıra PRODUCT.md içindedir.
-
-## Test ve yedekleme
-
-```cmd
-python -m unittest discover -s tests -v
-```
-
-Uygulamayı durdurup data ve yerel config dosyalarını yedekleyin. Ölçümlerin 30 günlük temizliği erişim döngüsü sonrasında yapılır; olay geçmişi temizlenmez. Yerel testler gerçek ESXi/FortiGate/switch entegrasyon doğrulamasının yerine geçmez.
-
-## Ticari durum
-
-Açık kaynak lisansı atanmadı; ticari lisans ve şartlar ürün sahibi tarafından belirlenecek. Üçüncü taraf paketlerin lisansları ayrıca geçerlidir. Satış öncesi güvenlik, kurulum/güncelleme, servis çalışma şekli, yedekleme, destek ve yük testleri tamamlanmalıdır.
-# Windows kurulum önizlemesi
-
-Python gerektirmeyen Windows x64 test paketi için [INSTALLATION.md](INSTALLATION.md) dosyasını okuyun. Paket temiz Windows 10/11 veya Server 2019+ üzerinde denenmek üzere hazırlanmıştır; tam temiz-makine/yeniden başlatma kabulü henüz tamamlanmadı. Kaynak derleme: `requirements-build.txt`, `build_windows.py`; çıktılar `data/releases/` altında üretilir ve Git'e eklenmez.
+Windows paket üreticisi [build_windows.py](build_windows.py), ürün kapsamı [PRODUCT.md](PRODUCT.md) ve otomatik doğrulamalar [CI](.github/workflows/ci.yml) içindedir. Gerçek müşteri ortamı kabulü otomatik testlerden ayrı tutulur. Bu depoya açık kaynak lisansı atanmış değildir; üçüncü taraf bileşenlerin lisansları ayrıca geçerlidir.

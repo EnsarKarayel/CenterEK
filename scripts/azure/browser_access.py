@@ -4,9 +4,14 @@ import ipaddress
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import panel_app
+
+PANEL_PUBLIC_PATHS = tuple(['/panel', *panel_app.FILES])
 
 
-def assert_publishable(auth, *, tenant_id, client_id, principal_ids, origin=None):
+def assert_publishable(auth, *, tenant_id, client_id, principal_ids, origin=None, panel_assets=False):
     """Fail closed before external ingress; use the LIVE ARM authConfig response."""
     import uuid
     tenant_id = str(uuid.UUID(tenant_id))
@@ -30,7 +35,7 @@ def assert_publishable(auth, *, tenant_id, client_id, principal_ids, origin=None
         props.get('httpSettings', {}).get('requireHttps') is True,
         global_policy.get('unauthenticatedClientAction') == 'RedirectToLoginPage',
         global_policy.get('redirectToProvider') == 'azureActiveDirectory',
-        not global_policy.get('excludedPaths'),
+        sorted(global_policy.get('excludedPaths') or []) == sorted(PANEL_PUBLIC_PATHS if panel_assets else []),
         aad.get('enabled') is True,
         registration.get('clientId', '').lower() == client_id,
         registration.get('openIdIssuer', '').rstrip('/') == f'https://login.microsoftonline.com/{tenant_id}/v2.0',
@@ -43,6 +48,30 @@ def assert_publishable(auth, *, tenant_id, client_id, principal_ids, origin=None
     )
     if not all(checks):
         raise ValueError('Live authentication configuration does not match approved access scope')
+
+
+def with_panel_assets(config):
+    """Add only exact public static locations; preserve the live proxy configuration."""
+    marker = '        location / {'
+    if config.count(marker) != 1 or '# CenterEK PWA static assets' in config:
+        raise ValueError('Expected an unmodified single proxy location')
+    blocks = ['        # CenterEK PWA static assets', '        location = /panel { return 308 /panel/; }']
+    for route, (_, mime) in panel_app.FILES.items():
+        filename = '/tmp/centerek-panel' + route
+        blocks.extend([
+            '        location = ' + route + ' {',
+            '            alias ' + filename + ';',
+            '            default_type ' + mime.split(';')[0] + ';',
+            '            add_header Cache-Control "no-store" always;',
+            '            add_header X-Content-Type-Options "nosniff" always;',
+            '            add_header Referrer-Policy "no-referrer" always;',
+            '            add_header Strict-Transport-Security "max-age=31536000" always;',
+            '            add_header Content-Security-Policy "default-src \'self\'; script-src \'self\'; style-src \'self\' \'unsafe-inline\'; frame-ancestors \'none\'; base-uri \'none\'; form-action \'self\'" always;',
+        ])
+        if route == '/panel-worker.js':
+            blocks.append('            add_header Service-Worker-Allowed "/" always;')
+        blocks.append('        }')
+    return config.replace(marker, '\n'.join(blocks) + '\n' + marker)
 
 
 def nginx_config(backend_ip, backend_name, port=8765):

@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--client-id', required=True)
     parser.add_argument('--principal-id', action='append', required=True)
     parser.add_argument('--publish', action='store_true', help='Enable external ingress only after policy validation')
+    parser.add_argument('--panel-assets', action='store_true', help='Permit only the exact public PWA asset paths')
     args = parser.parse_args()
     for value in (args.resource_group, args.app_name):
         if not re.fullmatch(r'[A-Za-z0-9_.-]{1,90}', value):
@@ -98,7 +99,7 @@ def main():
 
     def check_auth():
         auth = az('rest', '--method', 'get', '--url', base + '/authConfigs/current' + api)
-        assert_publishable(auth, tenant_id=args.tenant_id, client_id=args.client_id, principal_ids=args.principal_id, origin='https://' + public_host)
+        assert_publishable(auth, tenant_id=args.tenant_id, client_id=args.client_id, principal_ids=args.principal_id, origin='https://' + public_host, panel_assets=args.panel_assets)
 
     check_auth()
     properties = app['properties']

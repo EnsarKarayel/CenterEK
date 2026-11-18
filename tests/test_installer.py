@@ -2,10 +2,35 @@ from dataclasses import replace
 from pathlib import Path
 import tempfile
 import unittest
+import ctypes
+import os
+from types import SimpleNamespace
+from unittest.mock import patch
 import installer_core
 
 
 class InstallerValidationTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows native computer identity')
+    def test_native_computer_identity_matches_windows_not_long_dns_name(self):
+        self.assertEqual(os.environ['COMPUTERNAME'].upper(), installer_core.windows_computer_name())
+        class NativeCall:
+            def __call__(self, kind, buffer, size):
+                self.kind = kind
+                buffer.value = 'QA-PC'
+                return True
+        native = NativeCall()
+        with patch.object(ctypes, 'WinDLL', return_value=SimpleNamespace(GetComputerNameExW=native)), patch.object(installer_core.socket, 'gethostname', return_value='qa-pc-with-a-long-dns-identity.example.invalid'):
+            self.assertEqual('QA-PC', installer_core.windows_computer_name())
+            self.assertEqual(0, native.kind)
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows native computer identity')
+    def test_identity_failure_does_not_fall_back_to_unrelated_dns_name(self):
+        class NativeFailure:
+            def __call__(self, *args): return False
+        with patch.object(ctypes, 'WinDLL', return_value=SimpleNamespace(GetComputerNameExW=NativeFailure())), patch.object(ctypes, 'get_last_error', return_value=5):
+            with self.assertRaises(OSError):
+                installer_core.windows_computer_name()
+
     def test_fresh_local_defaults_and_password_redaction(self):
         with tempfile.TemporaryDirectory() as temporary:
             options = installer_core.Options(str(Path(temporary) / 'CenterEK'), 'admin', 'private-install-password')

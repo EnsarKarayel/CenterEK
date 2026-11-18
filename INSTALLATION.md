@@ -4,8 +4,8 @@ Bu paket başka bir temiz Windows bilgisayarda kurulum denemesi içindir. Ticari
 
 ## Başlatma
 
-1. ZIP'in tamamını bir klasöre çıkarın. EXE'yi ZIP içinden çalıştırmayın; `_internal` klasörünü ayırmayın.
-2. `CenterEK-Setup.exe` dosyasını açın. Windows yönetici izni gerekir.
+1. `CenterEK-Setup-0.9.2-preview-win-x64.exe` dosyasını indirin. Tek dosya kurulum paketi kendi çalışma zamanını geçici klasöre açar; Python veya ZIP çıkarma işlemi gerekmez.
+2. Dosyayı çift tıklayarak açın. Windows yönetici izni gerekir. Alternatif ZIP paketini kullanıyorsanız tamamını bir klasöre çıkarıp içindeki `CenterEK-Setup.exe` dosyasını çalıştırın; `_internal` klasörünü ayırmayın.
 3. Dil, boş bir hedef klasör, ilk yönetici kullanıcı/parolası ve portu girin.
 4. Varsayılan “yalnızca bu bilgisayar” modudur. LAN istenirse bu bilgisayara ait özel IPv4 adresini ve isteğe bağlı firewall iznini seçin.
 5. HTTPS sertifikası otomatik oluşturulur. Kurulumda görünen CA güven seçimi, yalnızca seçilen panel adı/IP'lerine daraltılan yeni CA'yı Windows makine kök deposuna ekler. Bu güvenin kurulmasını istemiyorsanız önizlemenin otomatik kurulumunu tamamlamayın.
@@ -26,6 +26,8 @@ Bu paket başka bir temiz Windows bilgisayarda kurulum denemesi içindir. Ticari
 
 ## Deneme kabul listesi
 
+0.9.2-preview için Python olmayan Windows 11 Sandbox ortamında temiz kurulum, HTTPS giriş, SYSTEM görevleri, ajan alımı, kaldırma/geri kurma ve ayrı yükseltme/geri alma testi geçti. Paylaşılabilir sonuçlar [kabul kanıtlarında](docs/acceptance/0.9.2-preview/README.md) bulunur. Aşağıdaki liste her yeni paket ve hedef ortam için yeniden uygulanır; kalıcı yeniden başlatma, dış setup/UAC ve Windows Server kabulü henüz tamamlanmadı.
+
 - [ ] Python olmayan temiz Windows'ta kurulum tamamlandı.
 - [ ] Panel HTTPS ile açıldı, girilen ilk hesapla giriş yapıldı.
 - [ ] Yerel ajan seçildiyse oturum, RAM, disk ve MAC raporu güncellendi.
@@ -36,9 +38,9 @@ Bu paket başka bir temiz Windows bilgisayarda kurulum denemesi içindir. Ticari
 
 ## Sınırlar
 
-Bu ilk kurulum paketi imzasızdır; güvenlik uyarıları/kurum politikaları oluşabilir. Güvenlik ürünlerini kapatmayın. İmzalı MSI/tek dosya dağıtım ve temiz makine/yeniden başlatma kabulü tamamlanmadan ticari yayın yapılmamalıdır. ZIP hash dosyası iletim bütünlüğünü kontrol eder, yayıncı kimliği doğrulaması değildir.
+Bu kurulum paketi imzasızdır; güvenlik uyarıları/kurum politikaları oluşabilir. Güvenlik ürünlerini kapatmayın. Kod imzalama ve temiz makine/yeniden başlatma kabulü tamamlanmadan ticari yayın yapılmamalıdır. EXE/ZIP hash dosyaları iletim bütünlüğünü kontrol eder, yayıncı kimliği doğrulaması değildir.
 
-Önizleme yalnızca boş hedef klasöre kurulur. Mevcut CenterEK kurulumu, veritabanı ve sertifikaları üzerine yükseltme yapmaz. Tam yükseltme/geri alma ve kaldırma sihirbazı henüz tamamlanmadı. Hata durumunda tanı için kurulum klasörü korunur; kurulum bazı görevleri/sertifika güvenini oluşturmuş olabilir. Hata ekranından sonra tekrar denemeden önce günlükleri inceleyin. Paket mevcut uygulama klasörü/C sürücüsü kökü/Windows klasörü üzerine kurulmaz.
+Yeni kurulum yalnızca boş hedef klasöre yapılır. Mevcut paket kurulumları için **Yükselt / Geri al / Kaldır** ekranını kullanın; yedekli bakım ve kesinti kurtarma ayrıntıları MAINTENANCE.md içindedir. Kaynak koddan çalışan eski ofis kurulumu otomatik yükseltilmez. Yeni kurulum hatasında tanı için klasör korunur; bazı görevler/sertifika güveni oluşturulmuş olabilir. Tekrar denemeden önce günlükleri inceleyin. Paket C sürücüsü kökü/Windows klasörü üzerine kurulmaz.
 
 Sunucu için başlangıçta yalnızca bu makinenin erişim hedefi eklenir. Diğer sunucular, switchler, firewall ve AP'ler panelin Kurulum / Bağlantılar bölümünden tanımlanır. Otomatik AP keşfi, disk seri/WWN ve fiziksel RAID sağlığı bu paketle eklenmiş sayılmaz.
 # Sonradan uzaktan erişim

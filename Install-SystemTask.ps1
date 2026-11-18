@@ -79,8 +79,8 @@ if ($LASTEXITCODE -ne 0) {throw 'Program dosyası izinleri uygulanamadı; görev
 $backups=Join-Path $root 'data\task-backups'
 New-Item -ItemType Directory -Path $backups -Force | Out-Null
 foreach($item in @($previous,$legacy)) {if($item){Export-ScheduledTask -TaskName $item.TaskName | Set-Content -LiteralPath (Join-Path $backups ($item.TaskName+'-'+(Get-Date -Format yyyyMMddHHmmss)+'.xml')) -Encoding UTF8}}
-$arguments='-NoProfile -WindowStyle Hidden -File "'+$wrapper+'" -Mode '+$Mode+' -PythonPath "'+$PythonPath+'"'
-if($ServerExecutable){$arguments=$arguments.Replace('-NoProfile ','-NoProfile -ExecutionPolicy RemoteSigned ');$arguments+=' -ServerExecutable "'+$ServerExecutable+'"'}
+$arguments='-NoProfile -ExecutionPolicy RemoteSigned -WindowStyle Hidden -File "'+$wrapper+'" -Mode '+$Mode+' -PythonPath "'+$PythonPath+'"'
+if($ServerExecutable){$arguments+=' -ServerExecutable "'+$ServerExecutable+'"'}
 if($Mode -ne 'Server'){$arguments+=' -AgentConfig "'+$AgentConfig+'"'}
 $action=New-ScheduledTaskAction -Execute (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -Argument $arguments -WorkingDirectory $root
 $namespace='Root/Microsoft/Windows/TaskScheduler'

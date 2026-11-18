@@ -28,6 +28,16 @@ Arayüzler, logolar ve ürün kodları kopyalanmaz; genel iş akışlarından ya
 4. Kesintiler: Başlangıç, doğrulama, geri dönüş ve süre.
 5. Sonraki aşama: doğrulanmış ağ haritası, bildirim kuralları, müşteri/lokasyon seçimi, kurulum sihirbazı.
 
+## 0.9 abonelik ve ticari yayın hazırlığı
+
+Yıllık, kurulum kimliğine bağlı Ed25519 imzalı abonelik; süre dolunca ölçümü durdurup geçmişi koruyan akış; panelden yenileme; nihai EULA kabul kaydı; Authenticode/zaman damgası entegrasyonu ve temiz Windows test betikleri eklendi. Gerçek kod imzalama sertifikası, satıcı/sözleşme bilgileri ve temiz Windows kabulü henüz tamamlanmadı. Ön sürüm paket ticari satışa hazır olarak etiketlenmez. LICENSING.md, CODE-SIGNING.md ve CLEAN-WINDOWS-TESTS.md bekleyen dış adımları açıklar.
+
+## 0.8 kurulum ve bakım ön sürümü
+
+Tek dosya Windows setup; müşteri tarafından oluşturulan ilk yönetici hesabı; Windows Yüklü uygulamalar kaydı; korumalı tam yedekle yükseltme ve otomatik geri dönüş; elle geri alma; kesilen bakımın kurtarılması; müşteri verilerini saklayan kaldırma ve kaldırılanı geri kurma eklendi. Aynı kuruluma ait görev ve süreçler doğrulanır; program/veritabanı/görev yedeklerinin bütünlüğü kontrol edilir. Kaynak koddan çalışan eski ofis kurulumu otomatik yükseltilmez.
+
+Yerel testlerde gerçek paketlenmiş 0.7 sunucusu 0.8'e yükseltildi, HTTPS başlangıcı, eski sürüme dönüş ve veri saklayan kaldırma doğrulandı. Bu testler geçici kurulum ve süreç kontrolü kullanır; gerçek Windows SYSTEM görevleri, UAC, temiz müşteri makinesi ve elektrik kesintisi kabulünün yerine geçmez. Kod imzalama, ticari lisans/destek koşulları ve bağımsız güvenlik incelemesi tamamlanmadan 1.0 satış sürümü olarak yayımlanmaz. Ayrıntılar MAINTENANCE.md içindedir.
+
 ## 0.5 uygulama durumu
 
 Kullanıcı oturumundan bağımsız SYSTEM görev kurulumu, açılış/kurtarma tetikleyicileri, işlem sarmalayıcısı, dönen günlükler ve arka plan kimlik saklama eklendi. Yeni modern canlı görünüm gerçek ölçüm zamanlarını gösterir; uç ajan varsayılanı 15 saniyedir. Bunlar kod ve yerel test kapsamındadır; hedef sunucuların SYSTEM görevleri ve yeniden başlatma testleri kurulumda tamamlanmalıdır. UNATTENDED.md bu dönüşümü açıklar.

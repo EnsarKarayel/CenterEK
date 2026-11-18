@@ -15,6 +15,13 @@ def check(folder):
     archive = folder / name
     if hashlib.sha256(archive.read_bytes()).hexdigest() != manifest['sha256']:
         raise ValueError('Archive digest mismatch')
+    if manifest.get('setup'):
+        setup_name = manifest['setup']
+        if Path(setup_name).name != setup_name or not setup_name.endswith('.exe'):
+            raise ValueError('Invalid setup name')
+        setup = folder / setup_name
+        if hashlib.sha256(setup.read_bytes()).hexdigest() != manifest['setup_sha256']:
+            raise ValueError('Setup digest mismatch')
     with zipfile.ZipFile(archive) as package:
         files = package.namelist()
         for name in files:

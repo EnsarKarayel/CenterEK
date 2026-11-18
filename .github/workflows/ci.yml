@@ -53,6 +53,10 @@ jobs:
           New-Item -ItemType Directory data -Force | Out-Null
           python -m unittest discover -s tests -v
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -File tests/Test-Maintenance.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -File tests/Test-OfficeIngestion.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: UI and language behavior
         run: |
           foreach ($file in Get-ChildItem web/*.js) {
@@ -63,9 +67,31 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node tests/test_i18n.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --check web/panel/panel.js
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/test_panel_worker.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Parse all PowerShell scripts without executing them
         shell: powershell
         run: ./scripts/ci/Test-PowerShell.ps1
+      - name: Exercise central rollout with a fake scheduler and local diagnostic fixture
+        shell: powershell
+        run: ./tests/Test-DomainRollout.ps1
+      - name: Verify DNS client repair rollback with mocked networking commands
+        shell: powershell
+        run: ./tests/Test-OfficeDnsClient.ps1
+      - name: Verify scoped network audit with fake DNS and a local loopback socket
+        shell: powershell
+        run: ./tests/Test-DomainNetworkAudit.ps1
+      - name: Verify client-initiated launcher with a native CMD fixture
+        shell: powershell
+        run: ./tests/Test-DomainPullLauncher.ps1
+      - name: Verify relay unlimited runtime and recovery using client-only CIM objects
+        shell: powershell
+        run: ./tests/Test-SiteRelayRepair.ps1
+      - name: Verify exact monitor process ownership without stopping processes
+        shell: powershell
+        run: ./tests/Test-MonitorRecovery.ps1
       - name: Summary
         if: always()
         shell: pwsh
@@ -76,7 +102,7 @@ jobs:
   package:
     name: Package and HTTPS smoke test
     needs: [verify, infrastructure]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'EnsarKarayel/CenterEK'
+    if: github.repository == 'EnsarKarayel/CenterEK'
     runs-on: windows-2022
     timeout-minutes: 25
     outputs:
@@ -106,17 +132,47 @@ jobs:
           if ($process.ExitCode -or -not (Get-Content $report -Raw|ConvertFrom-Json).ok) { throw 'Packaged self-test failed' }
           python tests/smoke_frozen.py --bundle "$env:RELEASE_DIR/dist/CenterEK-Setup" --report "$env:RELEASE_DIR/smoke-report.json"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/smoke_maintenance_frozen.py --bundle "$env:RELEASE_DIR/dist/CenterEK-Setup" --report "$env:RELEASE_DIR/maintenance-report.json"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $report=Join-Path $env:RELEASE_DIR 'maintenance-ui-report.json'
+          $process=Start-Process $exe -ArgumentList @('--check-maintenance','--report',('"'+$report+'"')) -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -or -not (Get-Content $report -Raw|ConvertFrom-Json).ok) { throw 'Maintenance UI check failed' }
           python scripts/ci/check_archive.py "$env:RELEASE_DIR"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python scripts/release/check_commercial.py "$env:RELEASE_DIR" --report-only
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: centerek-windows-${{ github.sha }}
           path: |
+            ${{ env.RELEASE_DIR }}/*.exe
             ${{ env.RELEASE_DIR }}/*.zip
             ${{ env.RELEASE_DIR }}/*.sha256
             ${{ env.RELEASE_DIR }}/*manifest.json
             ${{ env.RELEASE_DIR }}/*test.json
             ${{ env.RELEASE_DIR }}/*report.json
+          if-no-files-found: error
+          retention-days: 14
+
+  store-panel:
+    name: Prepare Store panel web assets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Export public assets without deployment or Store submission
+        run: python scripts/store/build_panel.py --output data/store-panel-ci --origin https://panel.example
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: centerek-store-panel-web-${{ github.sha }}
+          path: |
+            data/store-panel-ci/CenterEK-Panel-Web.zip
+            data/store-panel-ci/preparation-report.json
           if-no-files-found: error
           retention-days: 14
 

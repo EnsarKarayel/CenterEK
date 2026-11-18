@@ -1,0 +1,12 @@
+{
+  "seller": "Ensar Karayel",
+  "country": "TR",
+  "country_name": "Türkiye",
+  "support_email": "karayelensar@gmail.com",
+  "subscription_model": "annual",
+  "address_locality": "Keçiören, Ankara",
+  "seller_role": "Kurucu",
+  "legal_status": "Bireysel/şirket statüsü kesinleştirilecek",
+  "support_scope": "Müşteri kurulumu kendisi yapar. E-posta üzerinden kurulum ve ekran kullanımı soruları değerlendirilir. Ticket kanalı açıldığında ayrıca duyurulur. Sürekli sistem yönetimi, uzun vadeli destek, yerinde hizmet, 7/24 erişim veya belirli yanıt/çözüm süresi taahhüdü verilmez. Destek süresi ve ücret kapsamı satış öncesinde ayrıca kesinleştirilecektir.",
+  "identity_source": "provided by product owner; certificate validation pending"
+}

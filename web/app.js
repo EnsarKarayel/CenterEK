@@ -24,7 +24,7 @@ function table(root,headers,rows){
  }draw();
 }
 
-async function api(path){const r=await fetch(path,{signal:AbortSignal.timeout(12000)});if(r.status===401){location.replace('/login');throw Error('Oturum sona erdi')}if(!r.ok)throw Error('İstek başarısız');return r.json()}
+async function api(path,options={}){const r=await fetch(path,{signal:AbortSignal.timeout(12000),...options});if(r.status===401){location.replace('/login');throw Error('Oturum sona erdi')}if(!r.ok)throw Error('İstek başarısız');return r.json()}
 function category(d){if(d.category)return d.category;return /esxi|linux|server|sunucu/i.test(d.kind||'')?'servers':'network'}
 function metric(v){const n=el('div',number(v)+' %','metric');if(typeof v==='number'){const b=el('div',null,'meter '+(v>=90?'high':'')),i=el('i');i.style.width=Math.max(0,Math.min(100,v))+'%';b.append(i);n.append(b)}return n}
 function status(d){return d.stale?tag('Güncel veri yok','warning'):tag({up:'Erişilebilir',down:'Erişim yok',suspect:'Doğrulanıyor',unknown:'Bekleniyor'}[d.status]||'Bilinmiyor',d.status==='up'?'up':d.status==='down'?'down':'warning')}
@@ -218,3 +218,17 @@ initSwitches();
 document.addEventListener('centerek:status',renderSwitches);
 function pcButton(c){if(!c.agent_id)return el('span','Dosya raporu');const b=el('button','Grafikler','button');b.addEventListener('click',()=>showPCDetail(c.agent_id,true).catch(()=>{$('error').hidden=false;$('error').textContent='Bilgisayar geçmişi alınamadı.'}));return b}
 async function showPCDetail(id,scroll){state.selectedPC=id;const h=await api('/api/history/agent-'+encodeURIComponent(id));if(state.selectedPC!==id)return;$('pc-detail').hidden=false;const c=state.sessions.computers.find(c=>c.agent_id===id);$('pc-detail-title').textContent=(c?.computer||'Uç bilgisayar')+' · Son 24 saat';$('pc-charts').replaceChildren();for(const [key,title]of [['cpu_percent','CPU (%)'],['memory_percent','RAM (%)']])$('pc-charts').append(chart(title,h.metrics.map(m=>[m.checked,m.status==='ok'?m.values[key]:null]),100));if(scroll)$('pc-detail').scrollIntoView({behavior:'smooth'})}
+
+document.addEventListener('centerek:status',event=>{
+ const license=event.detail.license;if(!license)return;
+ let banner=$('subscription-notice');if(!banner){banner=el('div',null,'notice');banner.id='subscription-notice';document.querySelector('main').prepend(banner)}
+ banner.hidden=license.monitoring_allowed;banner.textContent='Abonelik etkin değil. Yeni ölçümler durduruldu; geçmiş verilerinizi görüntüleyebilir ve dışa aktarabilirsiniz.';
+ const setup=document.querySelector('[data-section="setup"]');if(!setup)return;if($('subscription-panel')){$('subscription-panel')._licenseUpdate?.(license);return}
+ const panel=el('article',null,'panel');panel.id='subscription-panel';const heading=el('h3','Yıllık abonelik'),summary=el('p'),identity=el('p'),input=el('input'),button=el('button','Lisans dosyasını etkinleştir','button'),result=el('p');
+ input.type='file';input.accept='.json,application/json';input.setAttribute('aria-label','Lisans dosyası');
+ panel.append(heading,summary,identity,input,button,result);setup.append(panel);
+ panel._licenseUpdate=info=>summary.replaceChildren(el('span',info.status==='active'?'Abonelik etkin':info.status==='preview'?'Ön sürüm':'Abonelik etkin değil'),el('small',info.expires_at?' · '+date(info.expires_at):''));
+ async function load(){try{const info=await api('/api/license');panel._licenseUpdate(info);const code=el('code',info.installation_id||'—');code.dataset.noI18n='';identity.replaceChildren(el('span','Kurulum kimliği: '),code);if(info.publisher?.support_email){let contact=panel.querySelector('.subscription-contact');if(!contact){contact=el('p',null,'subscription-contact');contact.dataset.noI18n='';panel.append(contact)}contact.textContent=(info.publisher.seller||'CenterEK')+' · '+info.publisher.support_email}}catch{panel.hidden=true}}
+ button.onclick=async()=>{button.disabled=true;try{const file=input.files?.[0];if(!file||file.size>16384)throw Error();const payload=JSON.parse(await file.text());await api('/api/license',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});result.textContent='Lisans etkinleştirildi.';await load();input.value=''}catch{result.textContent='Lisans etkinleştirilemedi. Dosyayı, kurulum kimliğini ve abonelik süresini kontrol edin.'}finally{button.disabled=false}};
+ load();
+});

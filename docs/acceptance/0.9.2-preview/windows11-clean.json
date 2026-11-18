@@ -1,0 +1,24 @@
+﻿{
+    "kind":  "isolated-windows",
+    "python_absent":  true,
+    "os":  "Microsoft Windows 11 Enterprise",
+    "build":  "10.0.26100.0",
+    "bundle_exe_sha256":  "e928baf2e4fc8346255ea7582afd3763409bfc57f610df6f1d75df5ee995b180",
+    "steps":  {
+                  "install":  true,
+                  "login":  true,
+                  "https":  true,
+                  "system_tasks":  true,
+                  "endpoint_received":  true,
+                  "windows_registration":  true,
+                  "uninstall_preserves_data":  true,
+                  "restored_same_account":  true
+              },
+    "ok":  true,
+    "reboot_test":  "pending",
+    "uac_interaction":  "pending",
+    "outer_setup_ui":  "pending",
+    "stage":  "completed",
+    "version":  "0.9.2-preview",
+    "license_mode":  "preview"
+}

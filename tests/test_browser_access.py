@@ -15,6 +15,20 @@ with patch.dict('sys.modules', {'browser_access': gateway}):
 
 
 class BrowserAccessTests(unittest.TestCase):
+    def test_pwa_locations_are_exact_and_preserve_the_private_proxy(self):
+        original = gateway.nginx_config('10.42.1.4', 'ce-staging')
+        extended = gateway.with_panel_assets(original)
+        self.assertIn(original[original.index('        location / {'):], extended)
+        self.assertIn('location ^~ /api/agent/ { return 403; }', extended)
+        for route in gateway.PANEL_PUBLIC_PATHS:
+            self.assertIn('location = ' + route + ' {', extended)
+        self.assertNotIn('location ^~ /panel', extended)
+        self.assertIn('Service-Worker-Allowed "/"', extended)
+        self.assertIn('location = /panel/ {\n            alias /tmp/centerek-panel/panel/;', extended)
+        self.assertIn('location = /panel/index.html {\n            alias /tmp/centerek-panel/panel/index.html;', extended)
+        with self.assertRaises(ValueError):
+            gateway.with_panel_assets(extended)
+
     def test_telemetry_ingress_exposes_only_site_post_and_keeps_private_tls(self):
         config = gateway.telemetry_config('10.42.1.4', 'ce-staging')
         self.assertIn('location / { return 403; }', config)
@@ -50,6 +64,16 @@ class BrowserAccessTests(unittest.TestCase):
                 'validation': {'allowedAudiences': [client], 'defaultAuthorizationPolicy': {'allowedPrincipals': {'identities': [user]}}}}}}}
         arguments = dict(tenant_id=tenant, client_id=client, principal_ids=[user])
         gateway.assert_publishable(valid, **arguments)
+        static = copy.deepcopy(valid)
+        static['properties']['globalValidation']['excludedPaths'] = list(gateway.PANEL_PUBLIC_PATHS)
+        with self.assertRaises(ValueError):
+            gateway.assert_publishable(static, **arguments)
+        gateway.assert_publishable(static, **arguments, panel_assets=True)
+        for unsafe in ('/api/status', '/panel/*', '/', '/api/*'):
+            bad_static = copy.deepcopy(static)
+            bad_static['properties']['globalValidation']['excludedPaths'].append(unsafe)
+            with self.subTest(unsafe=unsafe), self.assertRaises(ValueError):
+                gateway.assert_publishable(bad_static, **arguments, panel_assets=True)
         same_origin = copy.deepcopy(valid)
         same_origin['properties']['login'] = {'allowedExternalRedirectUrls': ['https://panel.example']}
         gateway.assert_publishable(same_origin, **arguments, origin='https://panel.example')
