@@ -55,6 +55,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           powershell.exe -NoProfile -File tests/Test-Maintenance.ps1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -File tests/Test-OfficeIngestion.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: UI and language behavior
         run: |
           foreach ($file in Get-ChildItem web/*.js) {
