@@ -17,6 +17,7 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import auth
 import monitor
+import panel_app
 import tls_setup
 
 
@@ -67,6 +68,17 @@ def main():
                 result['protected'] = False
             except urllib.error.HTTPError as error:
                 result['protected'] = error.code == 401
+            # Exercise the installed/frozen asset path before authentication.
+            result['pwa'] = {}
+            for route, (_, mime) in panel_app.FILES.items():
+                with client.open(base + route, timeout=5) as response:
+                    body = response.read()
+                    result['pwa'][route] = response.status == 200 and response.headers['Content-Type'] == mime and bool(body)
+                    if route == '/panel/manifest.webmanifest':
+                        manifest = json.loads(body)
+                        result['pwa']['manifest'] = manifest['start_url'] == '/panel/' and manifest['display'] == 'standalone'
+                    if route == '/panel-worker.js':
+                        result['pwa']['worker_scope'] = response.headers['Service-Worker-Allowed'] == '/'
             with client.open(urllib.request.Request(base + '/api/login', data=json.dumps({
                 'username': 'smoke-admin', 'password': password}).encode(),
                 headers={'Origin': base, 'Content-Type': 'application/json'})) as response:
@@ -82,7 +94,7 @@ def main():
                     break
                 time.sleep(1)
             result['discovery_worker'] = status['status'] == 'complete' and status['total'] == 0
-            result['ok'] = result.get('https') and result['protected'] and result['login'] == 200 and result['discovery_worker'] and all(v == 200 for v in result['routes'].values())
+            result['ok'] = result.get('https') and result['protected'] and result['login'] == 200 and result['discovery_worker'] and all(v == 200 for v in result['routes'].values()) and all(result['pwa'].values())
         finally:
             process.terminate()
             try:

@@ -15,7 +15,7 @@ import time
 import urllib.request
 import uuid
 
-VERSION = '0.9.2-preview'
+VERSION = '0.9.3-preview'
 SCRIPTS = ('Install-SystemTask.ps1', 'Run-SystemTask.ps1', 'Collect-EndpointSessions.ps1',
            'Export-DirectoryInventory.ps1', 'Send-DirectoryInventory.ps1', 'Send-Report.ps1', 'Setup-Network.ps1', 'Detect-Networks.ps1', 'Maintenance-Tasks.ps1')
 
@@ -158,6 +158,13 @@ def powershell(script, *arguments, cwd=None):
         raise RuntimeError('Windows configuration step failed. Check installation logs and task permissions.')
 
 
+def required_install_space(executable, assets):
+    """Allow for the full copied runtime and growth, not just the small launcher."""
+    payload_bytes = Path(executable).stat().st_size + sum(
+        path.stat().st_size for path in Path(assets).rglob('*') if path.is_file())
+    return max(600 * 1024**2, payload_bytes * 2)
+
+
 def install(options, executable, assets, progress=lambda message: None):
     if os.name != 'nt' or not ctypes.windll.shell32.IsUserAnAdmin():
         raise PermissionError('Run the installer as administrator.')
@@ -187,8 +194,9 @@ def install(options, executable, assets, progress=lambda message: None):
     parent = target.parent
     while not parent.exists():
         parent = parent.parent
-    if shutil.disk_usage(parent).free < max(600 * 1024**2, executable.stat().st_size * 4):
-        raise ValueError('At least 600 MB free disk space is required.')
+    required = required_install_space(executable, assets)
+    if shutil.disk_usage(parent).free < required:
+        raise ValueError('Insufficient free disk space. At least ' + str((required + 1024**2 - 1) // 1024**2) + ' MB is required for this package.')
     target.mkdir(parents=True, exist_ok=True)
     log_folder = target / 'data/logs'
     log_folder.mkdir(parents=True)

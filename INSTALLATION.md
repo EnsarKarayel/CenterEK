@@ -4,7 +4,7 @@ Bu paket başka bir temiz Windows bilgisayarda kurulum denemesi içindir. Ticari
 
 ## Başlatma
 
-1. `CenterEK-Setup-0.9.2-preview-win-x64.exe` dosyasını indirin. Tek dosya kurulum paketi kendi çalışma zamanını geçici klasöre açar; Python veya ZIP çıkarma işlemi gerekmez.
+1. Başarılı CI çalışmasının `CenterEK-Setup-0.9.3-preview-win-x64.exe` dosyasını indirin. Tek dosya kurulum paketi kendi çalışma zamanını geçici klasöre açar; Python veya ZIP çıkarma işlemi gerekmez.
 2. Dosyayı çift tıklayarak açın. Windows yönetici izni gerekir. Alternatif ZIP paketini kullanıyorsanız tamamını bir klasöre çıkarıp içindeki `CenterEK-Setup.exe` dosyasını çalıştırın; `_internal` klasörünü ayırmayın.
 3. Dil, boş bir hedef klasör, ilk yönetici kullanıcı/parolası ve portu girin.
 4. Varsayılan “yalnızca bu bilgisayar” modudur. LAN istenirse bu bilgisayara ait özel IPv4 adresini ve isteğe bağlı firewall iznini seçin.

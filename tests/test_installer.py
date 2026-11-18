@@ -10,6 +10,28 @@ import installer_core
 
 
 class InstallerValidationTests(unittest.TestCase):
+    def test_disk_requirement_includes_nested_runtime_and_growth(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / 'setup.exe'
+            executable.write_bytes(b'launcher')
+            assets = root / '_internal'
+            runtime = assets / 'nested/python.dll'
+            runtime.parent.mkdir(parents=True)
+            runtime.write_bytes(b'runtime')
+            self.assertEqual(600 * 1024**2, installer_core.required_install_space(executable, assets))
+            original_stat = Path.stat
+            def sized_stat(path, *args, **kwargs):
+                result = original_stat(path, *args, **kwargs)
+                if path == runtime:
+                    fields = list(result)
+                    fields[6] = 400 * 1024**2
+                    return os.stat_result(fields)
+                return result
+            with patch.object(Path, 'stat', sized_stat):
+                self.assertEqual(2 * (400 * 1024**2 + len(b'launcher')),
+                                 installer_core.required_install_space(executable, assets))
+
     @unittest.skipUnless(os.name == 'nt', 'Windows native computer identity')
     def test_native_computer_identity_matches_windows_not_long_dns_name(self):
         self.assertEqual(os.environ['COMPUTERNAME'].upper(), installer_core.windows_computer_name())

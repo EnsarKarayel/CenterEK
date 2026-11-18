@@ -8,6 +8,8 @@ Panel uygulaması mevcut CenterEK HTTPS sunucusundaki arayüze bağlanan PWA'dı
 
 ## Geliştirilen ilk sürüm
 
+0.9.3 geliştirmesinde tarayıcı yükleme düğmesi göstermediğinde menüyle yükleme yardımı; kabul/erteleme/hata ve uygulama penceresi durumları eklendi. JavaScript davranış testleri ile paketli HTTPS PWA kontrolleri CI'da çalışır. Kaynak veya CI çıktısının değişmesi mevcut Azure statik dosyalarını otomatik güncellemez; ayrı dağıtım gerekir.
+
 - `/panel/`: kurulum düğmesi destekleyen tarayıcılarda PWA yükleme, mevcut panele geçiş ve yardım bağlantıları.
 - Web app manifesti; 192/512 PNG ve SVG ürün simgeleri; kullanıcının verdiği renk paleti.
 - `/panel-worker.js`: yalnızca genel bağlantı-hata ekranını önbelleğe alır. Panel, login, API, rapor, parola veya oturum yanıtları Cache Storage'a yazılmaz. API/kimlik sağlayıcısı istekleri ve POST istekleri ele alınmaz. Başka uygulamaların önbellekleri silinmez.

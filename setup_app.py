@@ -159,6 +159,7 @@ def self_test(report):
     import auth
     import connectors
     import monitor
+    import panel_app
     import service_secrets
     from cryptography import x509
     from pyVmomi import vim
@@ -175,6 +176,8 @@ def self_test(report):
         result['checks']['dpapi'] = service_secrets.unprotect(service_secrets.protect('ephemeral-check')) == 'ephemeral-check'
         result['checks']['assets'] = all((assets_root() / 'web' / name).is_file() for name in
                                         ('index.html', 'app.js', 'dashboard.js', 'i18n.js', 'theme.css'))
+        result['checks']['pwa_assets'] = all((assets_root() / 'web/panel' / name).is_file()
+                                          for name, _ in panel_app.FILES.values())
         with tempfile.TemporaryDirectory() as temporary:
             import tls_setup
             output = Path(temporary) / 'certs'

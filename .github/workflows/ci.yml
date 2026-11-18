@@ -71,6 +71,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node tests/test_panel_worker.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/test_panel_install.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Parse all PowerShell scripts without executing them
         shell: powershell
         run: ./scripts/ci/Test-PowerShell.ps1

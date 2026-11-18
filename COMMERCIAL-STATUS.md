@@ -1,6 +1,12 @@
-# Ticari yayın durumu — 17 Kasım 2026
+# Ticari yayın durumu — 18 Kasım 2026
 
-**Satışa hazır değil; 0.9.2-preview geliştirme/kabul sürümüdür.**
+**Satışa hazır değil; güncel geliştirme sürümü 0.9.3-preview.**
+
+## 0.9.3 PWA ve setup hazırlığı
+
+PWA yükleme düğmesi sunulmadığında tarayıcı menüsüyle yükleme yardımı görünür. Yüklemenin kabul edilmesi, ertelenmesi, hata vermesi ve uygulama penceresinde açılması ayrı açıklanır. Sunucu/ajan kurulumu veya otomatik Microsoft Store yayını yapılmaz.
+
+Setup boş alan kontrolü artık EXE ile birlikte bütün çalışma zamanı dosyalarını ve büyüme payını hesaba katar. Paket öz testi tüm PWA varlıklarını; paketli HTTPS testi anonim PWA dosyalarını, manifest ve worker kapsamını da doğrular. 0.9.2 temiz Sandbox sonuçları aşağıda önceki sürüme ait kanıt olarak korunur; yeni paketin temiz Windows/UAC/reboot kabulü yerine geçmez.
 
 ## Yeniden başlatma sonrası gerçek Windows kabulü
 
