@@ -1,0 +1,37 @@
+{
+  "ok": false,
+  "reboot_test": "blocked_environment_identity_changed",
+  "kind": "sandbox-guest-reboot",
+  "host_restarted": false,
+  "version": "0.9.3-preview",
+  "exe_sha256": "ea25e3d9fdd9c497f59d6ad1bc8884f0e77ab77706ce78224c99812ae6eee3e9",
+  "boot_before_utc": "2026-11-19T11:10:09.7553690Z",
+  "boot_after_utc": "2026-11-19T11:20:20.1358390Z",
+  "new_kernel_boot": true,
+  "installation_preserved": true,
+  "computer_name_preserved": false,
+  "system_tasks": [
+    {
+      "principal": "SYSTEM",
+      "name": "CenterEK-Endpoint-System",
+      "state": "Running"
+    },
+    {
+      "principal": "SYSTEM",
+      "name": "CenterEK-Server-System",
+      "state": "Running"
+    }
+  ],
+  "endpoint_identity_guard": "observed Wrong endpoint computer registration in endpoint.log",
+  "fresh_endpoint_after_reboot": false,
+  "full_vm_power_cycle": "not_tested",
+  "https_login_status": 200,
+  "checks": {
+    "installation_preserved": true,
+    "new_kernel_boot": true,
+    "system_startup_tasks": true,
+    "https_login": true,
+    "pwa_assets": true,
+    "api_protected": true
+  }
+}
