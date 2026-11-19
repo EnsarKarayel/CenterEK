@@ -1,2 +1,2 @@
 # Optional, run on a current admin workstation if legacy server wheels fail.
-cryptography==46.0.3
+cryptography==50.0.2
