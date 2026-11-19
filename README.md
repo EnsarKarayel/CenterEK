@@ -2,7 +2,7 @@
 
 CenterEK; bilgisayar, sunucu ve ağ cihazlarının erişilebilirliğini, kaynak kullanımını ve kullanıcı oturumlarını tek panelde izlemek için geliştirilen bir üründür. Sunucu müşterinin ortamına kurulur; panel tarayıcıdan veya bilgisayara yüklenebilen PWA üzerinden açılır.
 
-**Geliştirme sürümü: 0.9.3-preview. Henüz satışa hazır son sürüm değildir.** Önceki 0.9.2 paketi Windows 11 üzerinde temiz kurulum, yükseltme, geri alma ve verileri saklayarak kaldırma testlerinden geçti; bu kanıt yeni paketin kabulü yerine geçmez. Üretim kod imzası, nihai lisans/sözleşme onayı, dış setup/UAC, kalıcı yeniden başlatma ve Windows Server kabulü açık. Ayrıntılar: [ticari yayın durumu](COMMERCIAL-STATUS.md) ve [önceki test kanıtları](docs/acceptance/0.9.2-preview/README.md).
+**Geliştirme sürümü: 0.9.3-preview. Henüz satışa hazır son sürüm değildir.** 0.9.3 main paketi Windows 11 temiz kurulum, HTTPS giriş, SYSTEM görevleri, ajan alımı ve verileri saklayarak kaldırma/geri kurma testinden geçti. Sandbox yeniden başlatmasında bilgisayar adı değiştiği için yeni ajan verisi kabulü bloklandı; tam yeniden başlatma testi başarılı sayılmaz. Üretim kod imzası, nihai lisans/sözleşme onayı, dış setup/UAC, sabit kimlikli VM yeniden başlatma ve Windows Server kabulü açık. Ayrıntılar: [ticari yayın durumu](COMMERCIAL-STATUS.md), [0.9.3 test kanıtları](docs/acceptance/0.9.3-preview/README.md) ve [önceki yükseltme/geri alma kanıtları](docs/acceptance/0.9.2-preview/README.md).
 
 ## Hangi bileşeni kurmalıyım?
 

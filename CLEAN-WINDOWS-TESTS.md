@@ -1,4 +1,7 @@
+
 # Temiz Windows kabulü
+
+19 Kasım 2026: 0.9.3 main CI paketi de temiz Windows 11 testinden geçti. Sandbox misafiri gerçekten yeniden başlatıldı; bu oturumda bilgisayar adı değiştiği için ajan yeniden başlatma kabulü bloklandı. Sunucu/görev/HTTPS kontrolleri geçti. Ayrıntılar ve aynı ikiliye bağlı kanıtlar [0.9.3 raporlarında](docs/acceptance/0.9.3-preview/README.md). Windows 11 Sandbox iç yeniden başlatmayı destekler; oturumu kapatıp silmekle karıştırılmamalıdır. Sabit kimlikli VM ile uçtan uca yeniden başlatma ve dış setup/UAC kabulü hâlâ açıktır.
 
 0.9.2 paketi Python bulunmayan gerçek Windows 11 Enterprise Sandbox'ta temiz kurulum, HTTPS giriş, SYSTEM görevleri, uç ajan alımı, Windows kaydı, veri saklayan kaldırma ve aynı hesapla geri kurma testlerini geçti. Yerel rapor `data/clean-windows/0.9.2-20261117/reports/clean-windows-report.json` içindedir. Bu sonuç dış setup/UAC, kalıcı yeniden başlatma, Server veya imzalı ticari kabulü tamamlanmış saymaz. Mevcut Azure CenterEK sunucusu silinmez veya yeniden imajlanmaz.
 

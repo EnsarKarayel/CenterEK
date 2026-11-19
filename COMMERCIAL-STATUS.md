@@ -1,6 +1,12 @@
-# Ticari yayın durumu — 18 Kasım 2026
+# Ticari yayın durumu — 19 Kasım 2026
 
 **Satışa hazır değil; güncel geliştirme sürümü 0.9.3-preview.**
+
+## 19 Kasım: 0.9.3 gerçek temiz Windows testi
+
+Birleşen main CI paketinin gerçek Windows 11 Sandbox kurulum/giriş/SYSTEM görevleri/ajan alımı/kaldırma/aynı hesapla geri kurma testi geçti. Misafir Windows gerçekten yeniden başlatıldı; sunucu, SYSTEM görevleri ve HTTPS/PWA geri geldi. Bu Sandbox oturumunda bilgisayar adı değiştiği için bilgisayara bağlı ajan kaydı koruması yeni ölçümü reddetti. Tam reboot kabulü `blocked_environment_identity_changed` durumundadır; başarılı sayılmaz. Kanıtlar: [0.9.3 kabul raporları](docs/acceptance/0.9.3-preview/README.md).
+
+Windows 11 Sandbox kendi içinden yeniden başlatmayı destekler; kapanıp yeniden oluşturulması farklıdır. Eski notlardaki mutlak Sandbox/reboot sınırlaması bu ayrımla okunmalıdır. Bilgisayar kimliği sabit kalacak VM'de uçtan uca yeniden başlatma, Windows Server ve dış setup/UAC kabulü hâlâ gereklidir. Üretim imzası ve nihai ticari onay eksikleri değişmedi.
 
 ## 0.9.3 PWA ve setup hazırlığı
 
